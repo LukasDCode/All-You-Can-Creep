@@ -200,5 +200,3 @@ dependencies:
     - tqdm==4.51.0
     - urllib3==1.26.1
     - werkzeug==1.0.1
-prefix: C:\Users\Denny\anaconda3\envs\autonome
-
