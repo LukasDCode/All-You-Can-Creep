@@ -44,6 +44,7 @@ elif platform == "win32":
 
 env = UnityToGymWrapper(unity_env)
 
+
 """
 print(env.action_space) # --> Box(-1.0, 1.0, (9,), float32)
 print(env.action_space.shape[0]) # --> 9
@@ -52,10 +53,25 @@ print(env.observation_space.shape[0]) # --> 64
 """
 
 print(env.action_space) # --> Box(-1.0, 1.0, (9,), float32)
-# params["nr_actions"] = env.action_space.shape[0] # 9
-params["nr_actions"] = env.action_space # .shape[0] # 9
+# params["nr_actions"] = env.action_space.shape[0] # 9  
+# params["nr_actions"] = env.action_space # .shape[0] # 9
 params["nr_input_features"] = env.observation_space.shape[0] # 64
 params["env"] = env
+
+params["nr_actions"] = env.action_space.shape[0] # 9
+params["lower_bound"] = env.action_space.low
+params["upper_bound"] = env.action_space.high
+params["type"] = env.action_space.dtype
+
+print("size")
+print(params["nr_actions"])
+print("Lower Bound")
+print(params["lower_bound"])
+print("Upper Bound")
+print(params["upper_bound"])
+print("Type")
+print(params["type"])
+
 
 """
 params["nr_actions"] = env.action_space.n
