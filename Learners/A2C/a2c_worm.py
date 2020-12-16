@@ -97,7 +97,8 @@ class A2CLearner:
             states = torch.tensor(states, device=self.device, dtype=torch.float)
             policy_losses = []
             value_losses = []
-            for probs, (action_loc,action_scale) value, R in zip(action_probs, actions, state_values, normalized_returns):
+            for probs, (action_loc,action_scale), value, R in zip(action_probs, actions, state_values, normalized_returns):
+            # for probs, (action_loc,action_scale) value, R in zip(action_probs, actions, state_values, normalized_returns):
                 advantage = R - value.item()
                 # advantage = 0 # Reinforce --> Critic is deactivated
                 m = Categorical(probs)
