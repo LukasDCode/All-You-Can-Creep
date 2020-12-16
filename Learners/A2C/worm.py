@@ -1,4 +1,5 @@
 import pdb
+from sys import platform
 import rooms
 import a2c_worm as a2c
 import matplotlib.pyplot as plot
@@ -33,26 +34,15 @@ def episode(env, agent, nr_episode=0):
 
 params = {}
 # Domain setup
-"""
-env = gym.make('MountainCar-v0')
-env = gym.make('Acrobot-v1')
-env = gym.make('CartPole-v1')
-"""
-
-# path = "C:\\Users\\Denny\\Documents\\git\\ml-agents\\Project\\Assets\\ML-Agents\\Examples\\Worm\\Scenes\\WormStaticTarget.unity"
-# path = "C:\\Users\\Denny\\Documents\\git\\ml-agents\\Project\\Assets\\ML-Agents\\Examples\\Worm"
-path = "~/University/LMU/WS2021/ASP/Sample_Repository/ml-agents/ml-agents-envs/mlagents_envs/environment.py"
-
-
 # Environment
-#env = UnityToGymWrapper(UnityEnvironment(path), uint8_visual, flatten_branched, allow_multiple_obs)
-# unity_env = UnityEnvironment(file_name="..\\Environment")
-unity_env = UnityEnvironment(file_name="worm_single_environment.x86_64")
+if platform == "linux" or platform == "linux2":
+    # linux
+    unity_env = UnityEnvironment(file_name="../../Unity/worm_single_environment.x86_64")
+elif platform == "win32":
+    # Windows...
+    unity_env = UnityEnvironment(file_name="..\\..\\Unity")
 
-#unity_env = UnityEnvironment("./envs/GridWorld")
-# env = UnityToGymWrapper(unity_env, 0, uint8_visual=True)
 env = UnityToGymWrapper(unity_env)
-# env = UnityToGymWrapper(unity_env, 0, uint8_visual=False)
 
 """
 print(env.action_space) # --> Box(-1.0, 1.0, (9,), float32)
