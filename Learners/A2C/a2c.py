@@ -21,6 +21,8 @@ class A2CNet(nn.Module):
     def forward(self, x):
         x = self.fc_net(x)
         x = x.view(x.size(0), -1)
+        print("Softmax")
+        print(F.softmax(self.action_head(x), dim=-1))
         return F.softmax(self.action_head(x), dim=-1), self.value_head(x)
 
 """
@@ -80,20 +82,22 @@ class A2CLearner:
 
             # Calculate losses of policy and value function
             actions = torch.tensor(actions, device=self.device, dtype=torch.long)
-            action_probs, state_values = self.predict_policy(states)
+            action_probs, state_values = self.predict_policy(states) # return = 
             states = torch.tensor(states, device=self.device, dtype=torch.float)
             policy_losses = []
             value_losses = []
-            for probs, action, value, R in zip(action_probs, actions, state_values, normalized_returns):
+            for probs, action, value, R in zip(action_probs, actions, state_values, normalized_returns): #actuibs
                 advantage = R - value.item()
                 m = Categorical(probs)
+                print("M")
+                print(m) # torch tensor
                 policy_losses.append(-m.log_prob(action) * advantage)
                 value_losses.append(F.smooth_l1_loss(value, torch.tensor([R])))
             loss = torch.stack(policy_losses).sum() + torch.stack(value_losses).sum()
 
             # Optimize joint loss
             self.optimizer.zero_grad()
-            loss.backward()
+            loss.backward() # loss wird angewand --> gradient descent
             self.optimizer.step()
             
             # Don't forget to delete all experiences afterwards! This is an on-policy algorithm.

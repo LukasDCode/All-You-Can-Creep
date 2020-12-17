@@ -15,7 +15,8 @@ class A2CNet(nn.Module):
             nn.Linear(nr_hidden_units, nr_hidden_units),
             nn.ReLU()
         )
-        self.action_head = nn.Linear(nr_hidden_units, nr_actions.shape[0]) # Actor = Policy-Function NN
+        self.action_head_loc = nn.Linear(nr_hidden_units, nr_actions) # Actor = Policy-Function NN
+        self.action_head_scale = nn.Linear(nr_hidden_units, nr_actions) # Actor = Policy-Function NN
         # hidden amount of input nodes, 9 output nodes for 9 different actions
         self.value_head = nn.Linear(nr_hidden_units, 1) # Critic = Value-Function NN
         # hidden amount of input nodes, 1 output node for single Q value
@@ -23,7 +24,8 @@ class A2CNet(nn.Module):
     def forward(self, x):
         x = self.fc_net(x)
         x = x.view(x.size(0), -1)
-        return F.softmax(self.action_head(x), dim=-1), self.value_head(x)
+        return (self.action_head_loc(x), self.action_head_scale(x)) ,  self.value_head(x)
+
 
 """
  Autonomous agent using Synchronous Actor-Critic.
@@ -33,7 +35,7 @@ class A2CLearner:
     def __init__(self, params):
         self.eps = numpy.finfo(numpy.float32).eps.item()
         self.gamma = params["gamma"]
-        self.nr_actions = params["nr_actions"].shape[0]
+        self.nr_actions = params["nr_actions"]
         self.alpha = params["alpha"]
         self.nr_input_features = params["nr_input_features"]
         self.transitions = []
@@ -45,19 +47,11 @@ class A2CLearner:
      Samples a new action using the policy network.
     """
     def policy(self, state):
-        action_probs, _ = self.predict_policy([state])
-        # m = Categorical(action_probs)
-        m = torch.distributions.Categorical(action_probs)
-        action = m.sample() # action.shape[0]
-        # return action.item()
-        print("action_probs")
-        print(action_probs)
-        print("m")
-        print(m)
-        print("action")
-        print(action)
-        return action # --> Box
-       
+        (action_locs, action_scales), _ = self.predict_policy([state])
+        # print("Actions {} {}".format( action_locs, action_scales))
+        m = torch.distributions.normal.Normal(action_locs, action_scales)
+        return m.sample().detach().numpy()
+
     """
      Predicts the action probabilities.
     """       
@@ -97,17 +91,18 @@ class A2CLearner:
 
             # Calculate losses of policy and value function
             actions = torch.tensor(actions, device=self.device, dtype=torch.long)
-            action_probs, state_values = self.predict_policy(states)
+            action_probs, state_values = self.predict_policy(states) # Tupel + value_head --- return aus Zeile 29: tupel((action_probs_loc, action_probs_scale), state_values)
             states = torch.tensor(states, device=self.device, dtype=torch.float)
             policy_losses = []
             value_losses = []
-            for probs, action, value, R in zip(action_probs, actions, state_values, normalized_returns):
+            for probs_loc, probs_scale, action, value, R in zip(action_probs[0], action_probs[1], actions, state_values, normalized_returns):
+            #for probs, action_loc,action_scale, value, R in zip(action_probs, actions[0], actions[1], state_values, normalized_returns):
                 advantage = R - value.item()
-                # advantage = 0 # Reinforce --> Critic is deactivated
-                m = Categorical(probs)
+                m = torch.distributions.normal.Normal(probs_loc, probs_scale)
                 policy_losses.append(-m.log_prob(action) * advantage)
-                value_losses.append(F.smooth_l1_loss(value, torch.tensor([R])))
-            loss = torch.stack(policy_losses).sum() + torch.stack(value_losses).sum()
+                value_losses.append(F.mse_loss(value, torch.tensor([R])))
+            loss = torch.stack(policy_losses).sum() + torch.stack(value_losses).sum() # mean squared loss
+            
 
             # Optimize joint loss
             self.optimizer.zero_grad()
@@ -116,4 +111,5 @@ class A2CLearner:
             
             # Don't forget to delete all experiences afterwards! This is an on-policy algorithm.
             self.transitions.clear()
+
         return loss
