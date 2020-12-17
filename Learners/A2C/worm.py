@@ -9,11 +9,9 @@ from gym_unity.envs import UnityToGymWrapper
 from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 
-
 def episode(env, agent, nr_episode=0):
     state = env.reset()
     undiscounted_return = 0
-    discount_factor = 0.99
     done = False
     time_step = 0
     while not done:
@@ -31,62 +29,51 @@ def episode(env, agent, nr_episode=0):
     return undiscounted_return
 
 
-params = {}
-# Domain setup
-# Environment
-channel = EngineConfigurationChannel()
-channel.set_configuration_parameters(time_scale = 1.0)
+def run_with_params(training_episodes,params,):
+  params = params.copy()
 
-if platform == "linux" or platform == "linux2":
+  # Domain setup
+  # Environment
+  channel = EngineConfigurationChannel()
+  channel.set_configuration_parameters(time_scale = 1.0)
+
+  if platform == "linux" or platform == "linux2":
     # linux
     unity_env = UnityEnvironment(file_name="../../Unity/worm_single_environment.x86_64", no_graphics=False, side_channels=[channel])
-elif platform == "win32":
+  elif platform == "win32":
     # Windows...
     unity_env = UnityEnvironment(file_name="..\\..\\Unity", no_graphics=False, side_channels=[channel])
+  env = UnityToGymWrapper(unity_env)
 
-env = UnityToGymWrapper(unity_env)
+  params["nr_input_features"] = env.observation_space.shape[0] # 64
+  params["env"] = env
+  params["nr_actions"] = env.action_space.shape[0] # 9
+  params["lower_bound"] = env.action_space.low
+  params["upper_bound"] = env.action_space.high
+  params["type"] = env.action_space.dtype
 
-"""
-print(env.action_space) # --> Box(-1.0, 1.0, (9,), float32)
-print(env.action_space.shape[0]) # --> 9
-print(env.observation_space) # --> Box(-inf, inf, (64,), float32)
-print(env.observation_space.shape[0]) # --> 64
-"""
+  # Agent setup
+  agent = a2c.A2CLearner(params)
+  # train
+  returns = [episode(env, agent, i) for i in range(training_episodes)]
+  return returns
 
-params["nr_input_features"] = env.observation_space.shape[0] # 64
-params["env"] = env
+def main():
+  params = {}
+  # Hyperparameters
+  params["gamma"] = 0.99
+  params["alpha"] = 0.001
+  training_episodes = 2000
+  returns = run_with_params(training_episodes,params)
 
-params["nr_actions"] = env.action_space.shape[0] # 9
-params["lower_bound"] = env.action_space.low
-params["upper_bound"] = env.action_space.high
-params["type"] = env.action_space.dtype
+  x = range(training_episodes)
+  y = returns
+  plot.plot(x, y)
+  plot.title("Progress")
+  plot.xlabel("episode")
+  plot.ylabel("undiscounted return")
+  plot.show()
 
-"""
-print("size")
-print(params["nr_actions"])
-print("Lower Bound")
-print(params["lower_bound"])
-print("Upper Bound")
-print(params["upper_bound"])
-print("Type")
-print(params["type"])
-"""
 
-# Hyperparameters
-params["gamma"] = 0.99
-params["alpha"] = 0.001
-training_episodes = 2000
-
-# Agent setup
-agent = a2c.A2CLearner(params)
-returns = [episode(env, agent, i) for i in range(training_episodes)]
-
-x = range(training_episodes)
-y = returns
-
-plot.plot(x, y)
-plot.title("Progress")
-plot.xlabel("episode")
-plot.ylabel("undiscounted return")
-plot.show()
-
+if __name__ == "__main__":
+  main()
