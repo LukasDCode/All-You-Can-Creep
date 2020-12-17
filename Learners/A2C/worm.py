@@ -9,6 +9,9 @@ from gym_unity.envs import UnityToGymWrapper
 from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 
+from ...Tuning.executor import Domain as DomainTrainingAdaptor
+
+
 def episode(env, agent, nr_episode=0):
     state = env.reset()
     undiscounted_return = 0
@@ -57,6 +60,27 @@ def run_with_params(training_episodes,params,):
   # train
   returns = [episode(env, agent, i) for i in range(training_episodes)]
   return returns
+
+class WormDomainAdaptor(DomainTrainingAdaptor):
+
+    def run(self,params):
+        training_episodes = 2000
+        return run_with_params(training_episodes, params)
+
+    def python_run_command(self,params):
+        """Specifies the command to be run by slurm within the repository"""
+        # FIXME proper solution
+        # argparse interface implementation 
+        # create command passing relevant information
+        pass
+
+    def python_run_parse_log(self, logfilestring):
+        """Parses the slurm log to yield the requested values
+        returns rewards [float]
+        """
+        # FIXME proper solution
+        # filter with episodes and collect values
+        pass
 
 def main():
   params = {}
