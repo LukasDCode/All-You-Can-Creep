@@ -1,5 +1,6 @@
 import random
 import numpy
+import math
 
 def random_bandit(Q_values, action_counts):
     return random.choice(range(len(Q_values)))
