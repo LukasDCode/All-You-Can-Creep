@@ -40,7 +40,7 @@ if platform == "linux" or platform == "linux2":
     unity_env = UnityEnvironment(file_name="../../Unity/worm_single_environment.x86_64")
 elif platform == "win32":
     # Windows...
-    unity_env = UnityEnvironment(file_name="..\\..\\Unity")
+    unity_env = UnityEnvironment(file_name="..\\..\\unity")
 
 env = UnityToGymWrapper(unity_env)
 
