@@ -7,6 +7,7 @@ import gym
 
 from gym_unity.envs import UnityToGymWrapper
 from mlagents_envs.environment import UnityEnvironment
+from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 
 
 def episode(env, agent, nr_episode=0):
@@ -16,11 +17,9 @@ def episode(env, agent, nr_episode=0):
     done = False
     time_step = 0
     while not done:
-        env.render()
+        # env.render()
         # 1. Select action according to policy
         action = agent.policy(state)
-        print("Action")
-        print(action)
         # 2. Execute selected action
         next_state, reward, done, _ = env.step(action)
         # 3. Integrate new experience into agent
@@ -35,15 +34,17 @@ def episode(env, agent, nr_episode=0):
 params = {}
 # Domain setup
 # Environment
+channel = EngineConfigurationChannel()
+channel.set_configuration_parameters(time_scale = 1.0)
+
 if platform == "linux" or platform == "linux2":
     # linux
-    unity_env = UnityEnvironment(file_name="../../Unity/worm_single_environment.x86_64")
+    unity_env = UnityEnvironment(file_name="../../Unity/worm_single_environment.x86_64", no_graphics=False, side_channels=[channel])
 elif platform == "win32":
     # Windows...
-    unity_env = UnityEnvironment(file_name="..\\..\\Unity")
+    unity_env = UnityEnvironment(file_name="..\\..\\Unity", no_graphics=False, side_channels=[channel])
 
 env = UnityToGymWrapper(unity_env)
-
 
 """
 print(env.action_space) # --> Box(-1.0, 1.0, (9,), float32)
@@ -52,9 +53,6 @@ print(env.observation_space) # --> Box(-inf, inf, (64,), float32)
 print(env.observation_space.shape[0]) # --> 64
 """
 
-print(env.action_space) # --> Box(-1.0, 1.0, (9,), float32)
-# params["nr_actions"] = env.action_space.shape[0] # 9  
-# params["nr_actions"] = env.action_space # .shape[0] # 9
 params["nr_input_features"] = env.observation_space.shape[0] # 64
 params["env"] = env
 
@@ -63,6 +61,7 @@ params["lower_bound"] = env.action_space.low
 params["upper_bound"] = env.action_space.high
 params["type"] = env.action_space.dtype
 
+"""
 print("size")
 print(params["nr_actions"])
 print("Lower Bound")
@@ -71,12 +70,6 @@ print("Upper Bound")
 print(params["upper_bound"])
 print("Type")
 print(params["type"])
-
-
-"""
-params["nr_actions"] = env.action_space.n
-params["nr_input_features"] = env.observation_space.shape[0]
-params["env"] = env
 """
 
 # Hyperparameters
