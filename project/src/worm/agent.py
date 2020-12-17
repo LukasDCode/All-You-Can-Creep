@@ -2,7 +2,7 @@ import random
 import numpy
 import copy
 import math
-from multi_armed_bandits import random_bandit, epsilon_greedy, boltzmann, UCB1
+from .multi_armed_bandits import random_bandit, epsilon_greedy, boltzmann, UCB1
 
 """
  Base class of an autonomously acting and learning agent.

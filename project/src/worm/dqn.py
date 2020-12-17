@@ -2,11 +2,13 @@ import random
 import numpy
 import copy
 import math
-from multi_armed_bandits import epsilon_greedy
-from agent import QLearner
+
 from keras.models import Sequential
 from keras.layers import Dense
 from keras import optimizers
+
+from .agent import QLearner
+from .multi_armed_bandits import epsilon_greedy
 
 def build_model(input_dimension, output_dimension, learning_rate=0.001):
     model = Sequential()

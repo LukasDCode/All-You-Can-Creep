@@ -1,7 +1,5 @@
 import pdb
 from sys import platform
-import rooms
-import a2c_worm as a2c
 import matplotlib.pyplot as plot
 import gym
 
@@ -9,7 +7,8 @@ from gym_unity.envs import UnityToGymWrapper
 from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 
-from ...Tuning.executor import Domain as DomainTrainingAdaptor
+from .a2c_worm import A2CLearner
+from ..tuning.executor import Domain as DomainTrainingAdaptor
 
 
 def episode(env, agent, nr_episode=0):
@@ -42,10 +41,10 @@ def run_with_params(training_episodes,params,):
 
   if platform == "linux" or platform == "linux2":
     # linux
-    unity_env = UnityEnvironment(file_name="../../Unity/worm_single_environment.x86_64", no_graphics=False, side_channels=[channel])
+    unity_env = UnityEnvironment(file_name="Unity/worm_single_environment.x86_64", no_graphics=False, side_channels=[channel])
   elif platform == "win32":
     # Windows...
-    unity_env = UnityEnvironment(file_name="..\\..\\Unity", no_graphics=False, side_channels=[channel])
+    unity_env = UnityEnvironment(file_name="Unity", no_graphics=False, side_channels=[channel])
   env = UnityToGymWrapper(unity_env)
 
   params["nr_input_features"] = env.observation_space.shape[0] # 64
@@ -56,7 +55,7 @@ def run_with_params(training_episodes,params,):
   params["type"] = env.action_space.dtype
 
   # Agent setup
-  agent = a2c.A2CLearner(params)
+  agent = A2CLearner(params)
   # train
   returns = [episode(env, agent, i) for i in range(training_episodes)]
   return returns
