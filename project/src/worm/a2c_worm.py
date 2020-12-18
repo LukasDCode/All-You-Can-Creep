@@ -71,6 +71,9 @@ class A2CLearner:
     """
     def update(self, state, action, reward, next_state, done):
         self.transitions.append((state, action, reward, next_state, done))
+        # 64 Werte für state, 9 Werte für action, 1 Wert für reward, 64 Werte für next_state, 1 boolean für done
+        # print("letzte transition")
+        # print(self.transitions[-1])
         loss = None
         if done:
             states, actions, rewards, next_states, dones = tuple(zip(*self.transitions))
@@ -82,8 +85,11 @@ class A2CLearner:
                 R = reward + self.gamma*R
                 discounted_returns.append(R)
             discounted_returns.reverse()
+            print("States ___________________________________")
+            print(states)
             states = states
             next_states = next_states
+            print(states)
             rewards = torch.tensor(rewards, device=self.device, dtype=torch.float)
             discounted_returns = torch.tensor(discounted_returns, device=self.device, dtype=torch.float).detach()
             normalized_returns = (discounted_returns - discounted_returns.mean())
