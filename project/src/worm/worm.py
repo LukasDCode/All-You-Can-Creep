@@ -7,8 +7,8 @@ from gym_unity.envs import UnityToGymWrapper
 from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 
-from .a2c_worm import A2CLearner
-from ..tuning.executor import Domain as DomainTrainingAdaptor
+from a2c_worm import A2CLearner
+#from ..tuning.executor import Domain as DomainTrainingAdaptor
 
 
 def episode(env, agent, nr_episode=0):
@@ -37,7 +37,7 @@ def run_with_params(training_episodes,params,):
   # Domain setup
   # Environment
   channel = EngineConfigurationChannel()
-  channel.set_configuration_parameters(time_scale = 1.0)
+  channel.set_configuration_parameters(time_scale = 100.0)
 
   if platform == "linux" or platform == "linux2":
     # linux
@@ -60,6 +60,7 @@ def run_with_params(training_episodes,params,):
   returns = [episode(env, agent, i) for i in range(training_episodes)]
   return returns
 
+'''
 class WormDomainAdaptor(DomainTrainingAdaptor):
 
     def run(self,params):
@@ -80,6 +81,7 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
         # FIXME proper solution
         # filter with episodes and collect values
         pass
+'''
 
 def main():
   params = {}
