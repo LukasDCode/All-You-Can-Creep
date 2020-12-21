@@ -120,14 +120,15 @@ def parse_config():
 
 def main():
   config = parse_config()
+  print("Run with {}", str(config))
   domain = WormDomainAdaptor(training_episodes=config.episodes,result_base_name=config.result)
-  executor  = Executor(tasks_in_parallel=1, on_slurm=False, domain=domain)
-
-  # Hyperparameters
-  params = {}
-  params["gamma"] = config.gamma
-  params["alpha"] = config.alpha
-  executor.submit_task(params)
+  with Executor(tasks_in_parallel=1, on_slurm=False, domain=domain) as executor:
+    # Hyperparameters
+    params = {}
+    params["gamma"] = config.gamma
+    params["alpha"] = config.alpha
+    future = executor.submit_task(params)
+    print(future.get())
 
 if __name__ == "__main__":
   main()
