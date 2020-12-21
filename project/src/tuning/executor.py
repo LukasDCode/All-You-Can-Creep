@@ -51,7 +51,7 @@ class DirectRunner(TaskRunner):
         self.params = params
     
     def run(self):
-        self.env_spec.run(self.params)
+        return self.env_spec.run(self.params)
 
 
 class SlurmRunner(TaskRunner):
