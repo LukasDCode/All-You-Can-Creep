@@ -76,7 +76,9 @@ class Executor:
         self.on_slurm = on_slurm
 
     def submit_task(self, params):
-        return self.pool.apply_async(self.domain.create(self.on_slurm, params).run)
+        return self.pool.apply_async(
+            self.domain.create_task_runner(is_slurm=self.on_slurm, params=params).run
+        )
 
     def finalize(self,):
         self.pool.close()
