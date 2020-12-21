@@ -29,8 +29,15 @@ def visualize_simple(config, data_key, result_set):
     else:
         fig.show()
 
+def visualize_rewards(config):
+    print("visualizing")
+    result_sets = [json.load(file) for file in config.result_file]
+    visualize_simple(config, "rewards", result_sets)
+
+
+
 def parse_config():
-    parser = argparse.ArgumentParser("Visualize worms results")
+    parser = argparse.ArgumentParser()
     parser.add_argument(
         '-n', '--name',
         type=str,
@@ -47,23 +54,22 @@ def parse_config():
         default=3,
         help="number of columns to display",
         )
-    parser.add_argument(
-        '-r', '--results',
+
+    subparser = parser.add_subparsers(title="what to analyze",required=True)
+    r_parser = subparser.add_parser("rewards")
+    r_parser.set_defaults(func=visualize_rewards)
+    r_parser.add_argument(
+        'result_file',
         type=argparse.FileType("r"),
         nargs='+',
         )
-    reward_analysis = parser.add_subparsers("rewards", dest="sub", required=True)
+
     return parser.parse_args()
     
 
 def main():
     config = parse_config()
-    result_sets = [json.load(file) for file in config.results]
-    switch = {
-        "rewards": lambda: visualize_simple(config, "rewards", result_sets), 
-    }
-    # execute subcommand 
-    switch.get(config.sub)()
+    config.func(config)
 
 if __name__ == "__main__":
     main()
