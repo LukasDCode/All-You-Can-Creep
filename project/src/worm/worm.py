@@ -12,13 +12,15 @@ from a2c_worm import A2CLearner
 #from ..tuning.executor import Domain as DomainTrainingAdaptor
 
 
-def episode(env, agent, nr_episode=0):
+def episode(env, agent, nr_episode=0, env_render=False):
     state = env.reset()
+
     undiscounted_return = 0
     done = False
     time_step = 0
     while not done:
-        # env.render()
+        if env_render:
+          env.render()
         # 1. Select action according to policy
         action = agent.policy(state)
         # 2. Execute selected action
@@ -32,7 +34,7 @@ def episode(env, agent, nr_episode=0):
     return undiscounted_return
 
 
-def run_with_params(training_episodes,params,):
+def run_with_params(env_render, training_episodes,params,):
   params = params.copy()
 
   # Domain setup
@@ -58,7 +60,11 @@ def run_with_params(training_episodes,params,):
   # Agent setup
   agent = A2CLearner(params)
   # train
-  returns = [episode(env, agent, i) for i in range(training_episodes)]
+  returns = [episode(
+    env, 
+    agent, 
+    nr_episode=i, 
+    env_render=env_render) for i in range(training_episodes)]
   return returns
 
 '''
@@ -89,6 +95,8 @@ def parse_config():
   parser.add_argument('-a','--alpha', type=float, default=0.001, help='the learning rate')
   parser.add_argument('-g','--gamma', type=float, default=0.99 ,help='the discount factor for rewards')
   parser.add_argument('-n','--episodes', type=int, default=2000, help='training episodes')
+  parser.add_argument('-v', '--visualize', type=bool, default=False, help='call env.render')
+
   return parser.parse_args()
 
 
