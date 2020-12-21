@@ -8,6 +8,7 @@ def parse_config():
   parser.add_argument('-n','--episodes', type=int, default=2000, help='training episodes')
   parser.add_argument('-v', '--visualize', type=bool, default=False, help='call env.render')
   parser.add_argument('-r', '--result', type=str, default="result", help='file base name to save results into')
+  parser.add_argument('-p', '--parallel',type=int, default=1, help='level on parallization')
   return parser.parse_args()
 
 def main():
@@ -21,7 +22,7 @@ def main():
   config = parse_config()
   domain = WormDomainAdaptor(config)
 
-  with Executor(on_slurm=False, tasks_in_parallel=1, domain=domain) as executor:
+  with Executor(on_slurm=False, tasks_in_parallel=config.parallel, domain=domain) as executor:
     evolution =  EAsimple(executor,domain, params_eaSimple, result_tsv=config.result+".csv")
     evolution.run()
     

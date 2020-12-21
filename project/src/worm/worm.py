@@ -16,6 +16,7 @@ from ..tuning.executor import Domain as DomainTrainingAdaptor
 from ..tuning.executor import Executor
 
 
+
 def episode(env, agent, nr_episode=0, env_render=False):
     state = env.reset()
 
@@ -38,7 +39,7 @@ def episode(env, agent, nr_episode=0, env_render=False):
     return undiscounted_return
 
 
-def run_with_params(env_render, training_episodes,params,):
+def run_with_params(worker_id, env_render, training_episodes,params,):
   params = params.copy()
 
   # Domain setup
@@ -48,10 +49,10 @@ def run_with_params(env_render, training_episodes,params,):
 
   if platform == "linux" or platform == "linux2":
     # linux
-    unity_env = UnityEnvironment(file_name="Unity/worm_single_environment.x86_64", no_graphics=not env_render, side_channels=[channel])
+    unity_env = UnityEnvironment(file_name="Unity/worm_single_environment.x86_64", worker_id=worker_id, no_graphics=not env_render,side_channels=[channel])
   elif platform == "win32":
     # Windows...
-    unity_env = UnityEnvironment(file_name="Unity", no_graphics=not env_render, side_channels=[channel])
+    unity_env = UnityEnvironment(file_name="Unity", worker_id=worker_id, no_graphics=not env_render, side_channels=[channel])
   env = UnityToGymWrapper(unity_env)
 
   params["nr_input_features"] = env.observation_space.shape[0] # 64
@@ -79,11 +80,14 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
         self.training_episodes = config.episodes
         self.result_base_name = config.result
 
-    def run(self,params):
+
+    def run(self,worker_id,params):
         (rewards) = run_with_params(
+          worker_id=worker_id,
           env_render=self.render_env, 
           training_episodes=self.training_episodes, 
-          params=params)
+          params=params,
+        )
         result_dump = {
           "algorithm": "a2c",
           "params" : params,
@@ -124,6 +128,7 @@ def parse_config():
   parser.add_argument('-n','--episodes', type=int, default=2000, help='training episodes')
   parser.add_argument('-v', '--visualize', type=bool, default=False, help='call env.render')
   parser.add_argument('-r', '--result', type=str, default="result", help='file base name to save results into')
+  parser.add_argument('-p', '--parallel',type=int, default=1, help='level on parallization')
   return parser.parse_args()
 
 
@@ -131,7 +136,7 @@ def main():
   config = parse_config()
   print("Run with {}", str(config))
   domain = WormDomainAdaptor(config)
-  with Executor(tasks_in_parallel=1, on_slurm=False, domain=domain) as executor:
+  with Executor(tasks_in_parallel=config.parallel, on_slurm=False, domain=domain) as executor:
     # Hyperparameters
     params = {}
     params["gamma"] = config.gamma
