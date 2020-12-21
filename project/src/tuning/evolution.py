@@ -1,5 +1,5 @@
 import argparse
-
+from ..worm.worm import WormDomainAdaptor
 from .EAsimple import EAsimple
 from .executor import Executor
 
@@ -21,8 +21,8 @@ def main():
   config = parse_config()
   domain = WormDomainAdaptor(config)
 
-  with Executor(on_slurm=false, tasks_in_parallel=1, domain) as executor:
-    evolution =  EAsimple(executor,domain, params_eaSimple)
+  with Executor(on_slurm=False, tasks_in_parallel=1, domain=domain) as executor:
+    evolution =  EAsimple(executor,domain, params_eaSimple, result_tsv=config.result+".csv")
     evolution.run()
     
 if __name__ == "__main__":

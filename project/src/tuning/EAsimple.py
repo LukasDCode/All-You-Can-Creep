@@ -17,7 +17,7 @@ class EAsimple():
         self.fitness_list_past = []
         self.current_population = []
         self.current_generation = 1
-        self.rewards = np.zeros(self.param_dictionary["generation_max"])
+        self.rewards = np.zeros(self.generation_max)
         self.result_tsv = result_tsv
 
 
@@ -46,7 +46,7 @@ class EAsimple():
     def unwrap_params(self, individual):
         params = {}
         for index, value in enumerate(individual):
-            params[self.domain.param_dict[index].0] = value
+            params[self.domain.param_dict()[index][0]] = value
         return params
 
 
@@ -63,7 +63,7 @@ class EAsimple():
         return fitness_list
     
     def eval(self, individual):
-        return executor.submit_task(self.unwrap_params(individual))
+        return self.executor.submit_task(self.unwrap_params(individual))
 
     def mate(self):
         index_current_population_mate = []
@@ -88,7 +88,7 @@ class EAsimple():
     def mutate(self):
         new_current_population = []
         for individuum in self.current_population:
-            new_position = []
+            new_individuum = []
             for index, param in enumerate(individuum):
                 if np.random.rand() < self.mutation_rate:
                     (_,min,max) = self.domain.param_dict[index]
