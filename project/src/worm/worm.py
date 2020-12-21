@@ -47,10 +47,10 @@ def run_with_params(env_render, training_episodes,params,):
 
   if platform == "linux" or platform == "linux2":
     # linux
-    unity_env = UnityEnvironment(file_name="Unity/worm_single_environment.x86_64", no_graphics=False, side_channels=[channel])
+    unity_env = UnityEnvironment(file_name="Unity/worm_single_environment.x86_64", no_graphics=not env_render, side_channels=[channel])
   elif platform == "win32":
     # Windows...
-    unity_env = UnityEnvironment(file_name="Unity", no_graphics=False, side_channels=[channel])
+    unity_env = UnityEnvironment(file_name="Unity", no_graphics=not env_render, side_channels=[channel])
   env = UnityToGymWrapper(unity_env)
 
   params["nr_input_features"] = env.observation_space.shape[0] # 64
