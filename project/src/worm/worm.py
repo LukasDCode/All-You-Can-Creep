@@ -93,8 +93,12 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
           json.dump(result_dump, file)
         return rewards
     
-    def param_dict(self,):
-        pass
+    def param_dict(self):
+        return [
+          ("alpha", 0.001,0.001),
+          ("gamma", 0.99,1.),
+        ]
+        
 
     def python_run_command(self,params):
         """Specifies the command to be run by slurm within the repository"""

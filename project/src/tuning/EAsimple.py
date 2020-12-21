@@ -23,21 +23,17 @@ class EAsimple():
     def run(self):
         self.new_population()
         self.evaluate()
-        self.output()
         for i in range(self.generation_max):
             self.mate()
             self.mutate()
             self.evaluate()
             self.select()
-            self.output()
 
     def new_population(self):
         self.current_population = []
         for i in range(self.population_max):
-            gamma = random.uniform(0.9, 1)
-            epsilon = random.uniform(0.001, 10)
-            new_h = 
-            self.current_population.append([gamma, epsilon])
+            individual = [random.uniform(min,max) for (_,min,max) in self.domain.param_dict()]
+            self.current_population.append(individual)
     
     def unwrap_params(self, individual):
         params = {}
@@ -83,18 +79,16 @@ class EAsimple():
 
     def mutate(self):
         new_current_population = []
-        for position in self.current_population:
+        for individuum in self.current_population:
             new_position = []
-            for coordinate in position:
+            for index, param in enumerate(individuum):
                 if np.random.rand() < self.mutation_rate:
-                    if 0 == position.index(coordinate):
-                        new_coordinate = random.uniform(0.9, 1)
-                    else:
-                        new_coordinate = random.uniform(0.001, 10)
-                    new_position.append(new_coordinate)
+                    (_,min,max) = self.domain.param_dict[index]
+                    new_param = random.uniform(min,max) 
+                    new_individuum.append(new_param)
                 else:
-                    new_position.append(coordinate)
-            new_current_population.append(new_position)
+                    new_individuum.append(param)
+            new_current_population.append(new_individuum)
         self.current_population = new_current_population
 
     def select(self):
@@ -115,14 +109,6 @@ class EAsimple():
             del self.current_population[index]
 
         self.current_generation = self.current_generation + 1
-
-
-    def output(self):
-        for n,m in self.current_population, self.fitness_list:
-            rewards_array = []
-            gamma = n[0]
-            epsilon = n[1]
-            reward = m #angegebene daten printen lassen
 
     def convergence_speed(self, rewards):
         conSpeed = sum(self.rewards/len(rewards)) * max(rewards).index() #durchschnittliche Steigung
