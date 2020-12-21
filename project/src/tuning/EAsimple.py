@@ -3,7 +3,7 @@ import random
 
 class EAsimple():
 
-    def __init__(self, executor, domain,  param_dictionary):
+    def __init__(self, executor, domain,  param_dictionary, result_tsv):
         """
         Parameter hier übergeben.
         :param param_dictionary: Dictionary mit einzelnen Parametern für den Algorithmus.
@@ -18,16 +18,24 @@ class EAsimple():
         self.current_population = []
         self.current_generation = 1
         self.rewards = np.zeros(self.param_dictionary["generation_max"])
+        self.result_tsv = result_tsv
 
 
     def run(self):
         self.new_population()
         self.evaluate()
-        for i in range(self.generation_max):
+        with open(self.result_tsv, 'w') as tsv:
+          for i in range(self.generation_max):
             self.mate()
             self.mutate()
             self.evaluate()
             self.select()
+            tsv.write("{}\t{}\n".format(
+                self.current_generation, 
+                str(zip(self.fitness_list, self.current_population)),
+            ))
+
+
 
     def new_population(self):
         self.current_population = []
