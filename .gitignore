@@ -1,9 +1,9 @@
 project/Unity/**
-Learners/A2C/__pycache__/
-Learners/A2C/.vscode/
+**/__pycache__/
+**/.vscode/
 .idea
 .vscode
 Unity/
-project/src/tuning/__pycache__/
-project/src/worm/__pycache__/
+
+
 
