@@ -12,6 +12,7 @@ from mlagents_envs.side_channel.engine_configuration_channel import EngineConfig
 
 from .a2c_worm import A2CLearner
 from ..tuning.executor import Domain as DomainTrainingAdaptor
+from ..tuning.executor import Executor
 
 
 def episode(env, agent, nr_episode=0, env_render=False):
@@ -71,19 +72,20 @@ def run_with_params(env_render, training_episodes,params,):
 
 class WormDomainAdaptor(DomainTrainingAdaptor):
 
-    def __init__(self,training_episodes ) :
+    def __init__(self,training_episodes, result_base_name) :
         super().__init__()
+        self.training_episodes = training_episodes
+        self.result_base_name = result_base_name
 
     def run(self,params):
-        training_episodes = 2000
-        (rewards) = run_with_params(training_episodes, params)
+        (rewards) = run_with_params(self.training_episodes, params)
         result_dump = {
           "algorithm": "a2c",
           "params" : params,
           "rewards" : rewards,
           "exploration": [],
         }
-        with open("result-"+ uuid4() +".json") as file:
+        with open(self.result_base_name + uuid4() +".json") as file:
           json.dump(result_dump, file)
         return rewards
     
@@ -117,21 +119,15 @@ def parse_config():
 
 
 def main():
-  config = parse_config
-  params = {}
+  config = parse_config()
+  domain = DomainTrainingAdaptor(training_episodes=config.episodes,result_base_name=config.result)
+  executor  = Executor(tasks_in_parallel=1, on_slurm=False, domain=domain)
+
   # Hyperparameters
+  params = {}
   params["gamma"] = config.gamma
   params["alpha"] = config.alpha
-  training_episodes = config.episodes
-  returns = run_with_params(training_episodes,params)
-
-  x = range(training_episodes)
-  y = returns
-  plot.plot(x, y)
-  plot.title("Progress")
-  plot.xlabel("episode")
-  plot.ylabel("undiscounted return")
-  plot.show()
+  executor.submit_task(params)
 
 if __name__ == "__main__":
   main()
