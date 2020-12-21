@@ -5,18 +5,19 @@ import matplotlib.pyplot as plot
 
 def visualize_simple(config, data_key, result_set):
     columns = config.columns
-    rows = math.ceil(len(result_set)/columns)
+    rows = max(2, math.ceil(len(result_set)/columns))
+    print(rows)
 
-    fig, axs = plot.subplots(columns, rows, figsize=(16,24), sharey=True, sharex=True)
-    for ax in axs.flat():
+    fig, axs = plot.subplots(rows, columns, figsize=(columns*4,rows*4), sharey=True, sharex=True)
+    for ax in axs.flat:
         ax.set(xLabel='episode', ylabel="return")
         ax.label_outer()
-    fig.supertitle("{}-{}".format(config.name,data_key))
+    fig.suptitle("{}-{}".format(config.name,data_key))
     
     for index, result in enumerate(result_set):
         subfig = axs[
-            index % rows,
-            math.floor((index - index % rows)/rows),
+            index % columns,
+            math.floor((index - index % columns)/columns),
         ]
         subfig.set_title("{} {}".format(
             result["algorithm"], str(result["params"])
@@ -45,7 +46,7 @@ def parse_config():
     )
     parser.add_argument(
         '-f', '--file', 
-        type=argparse.FileType("w"),
+        type=str,
         default=None,
         )
     parser.add_argument(
@@ -55,7 +56,7 @@ def parse_config():
         help="number of columns to display",
         )
 
-    subparser = parser.add_subparsers(title="what to analyze",required=True)
+    subparser = parser.add_subparsers(title="analyzers",required=True)
     r_parser = subparser.add_parser("rewards")
     r_parser.set_defaults(func=visualize_rewards)
     r_parser.add_argument(
