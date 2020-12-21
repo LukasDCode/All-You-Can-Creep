@@ -3,13 +3,15 @@ from sys import platform
 import matplotlib.pyplot as plot
 import gym
 import argparse
+import json
+from uuid import uuid4
 
 from gym_unity.envs import UnityToGymWrapper
 from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 
-from a2c_worm import A2CLearner
-#from ..tuning.executor import Domain as DomainTrainingAdaptor
+from .a2c_worm import A2CLearner
+from ..tuning.executor import Domain as DomainTrainingAdaptor
 
 
 def episode(env, agent, nr_episode=0, env_render=False):
@@ -69,9 +71,21 @@ def run_with_params(env_render, training_episodes,params,):
 
 class WormDomainAdaptor(DomainTrainingAdaptor):
 
+    def __init__(self,training_episodes ) :
+        super().__init__()
+
     def run(self,params):
         training_episodes = 2000
-        return run_with_params(training_episodes, params)
+        (rewards) = run_with_params(training_episodes, params)
+        result_dump = {
+          "algorithm": "a2c",
+          "params" : params,
+          "rewards" : rewards,
+          "exploration": [],
+        }
+        with open("result-"+ uuid4() +".json") as file:
+          json.dump(result_dump, file)
+        return rewards
     
     def param_dict(self,):
         pass
@@ -98,7 +112,7 @@ def parse_config():
   parser.add_argument('-g','--gamma', type=float, default=0.99 ,help='the discount factor for rewards')
   parser.add_argument('-n','--episodes', type=int, default=2000, help='training episodes')
   parser.add_argument('-v', '--visualize', type=bool, default=False, help='call env.render')
-
+  parser.add_argument('-r', '--result', type=str, default="result", help='file base name to save results into')
   return parser.parse_args()
 
 
