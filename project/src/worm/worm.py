@@ -120,7 +120,7 @@ def parse_config():
 
 def main():
   config = parse_config()
-  domain = DomainTrainingAdaptor(training_episodes=config.episodes,result_base_name=config.result)
+  domain = WormDomainAdaptor(training_episodes=config.episodes,result_base_name=config.result)
   executor  = Executor(tasks_in_parallel=1, on_slurm=False, domain=domain)
 
   # Hyperparameters
