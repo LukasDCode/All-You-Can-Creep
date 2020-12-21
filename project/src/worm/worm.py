@@ -72,13 +72,17 @@ def run_with_params(env_render, training_episodes,params,):
 
 class WormDomainAdaptor(DomainTrainingAdaptor):
 
-    def __init__(self,training_episodes, result_base_name) :
+    def __init__(self, render_env, training_episodes, result_base_name) :
         super().__init__()
+        self.render_env = render_env
         self.training_episodes = training_episodes
         self.result_base_name = result_base_name
 
     def run(self,params):
-        (rewards) = run_with_params(self.training_episodes, params)
+        (rewards) = run_with_params(
+          env_render=self.render_env, 
+          training_episodes=self.training_episodes, 
+          params=params)
         result_dump = {
           "algorithm": "a2c",
           "params" : params,
@@ -121,7 +125,11 @@ def parse_config():
 def main():
   config = parse_config()
   print("Run with {}", str(config))
-  domain = WormDomainAdaptor(training_episodes=config.episodes,result_base_name=config.result)
+  domain = WormDomainAdaptor(
+    render_env=config.visualize,
+    training_episodes=config.episodes,
+    result_base_name=config.result
+  )
   with Executor(tasks_in_parallel=1, on_slurm=False, domain=domain) as executor:
     # Hyperparameters
     params = {}
