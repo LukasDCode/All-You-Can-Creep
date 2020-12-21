@@ -1,4 +1,5 @@
 import multiprocessing as mp
+from queue import Queue
 
 class Domain:
 
@@ -10,7 +11,7 @@ class Domain:
         return 
 
     def create_task_runner(self, is_slurm, params):
-        return self.create_slurm_runner(params) if is_slurm else self.create_local_runner(params)
+        return self.create_slurm_runner(params) if is_slurm else self.create_local_runner(params=params)
         # returns TaskRunner
     
     def create_slurm_runner(self, params):
@@ -19,7 +20,7 @@ class Domain:
     def create_local_runner(self, params):
         return DirectRunner(self, params)
 
-    def run(self,params):
+    def run(self,worker_id, params):
         """Executes the run directly in memory
         returns rewards [float]
         """
@@ -38,7 +39,7 @@ class Domain:
 
 class TaskRunner:
 
-    def run(self):
+    def run(self, worker_id):
         """executes one run with specific parameters
         returns rewards [float] 
         """
@@ -50,8 +51,8 @@ class DirectRunner(TaskRunner):
         self.env_spec = env_spec
         self.params = params
     
-    def run(self):
-        return self.env_spec.run(self.params)
+    def run(self, worker_id):
+        return self.env_spec.run(worker_id, self.params)
 
 
 class SlurmRunner(TaskRunner):
@@ -60,7 +61,7 @@ class SlurmRunner(TaskRunner):
         self.params = params
         self.env_spec = env_spec
         
-    def run(self):
+    def run(self, worker_id):
         command = self.env_spec.python_run_command
         # TODO
         # start slurm job on remote machine
@@ -75,9 +76,17 @@ class Executor:
         self.domain = domain
         self.on_slurm = on_slurm
 
+        self.tokens = Queue()
+        for x in range(0,tasks_in_parallel):
+          self.tokens.put(x)
+
     def submit_task(self, params):
+        worker_id = self.tokens.get(block=True)
         return self.pool.apply_async(
-            self.domain.create_task_runner(is_slurm=self.on_slurm, params=params).run
+            self.domain.create_task_runner(is_slurm=self.on_slurm, params=params).run,
+            kwds={"worker_id":worker_id},
+            callback= lambda: self.tokens.put(worker_id) ,
+            error_callback=lambda: self.tokens.put(worker_id),
         )
 
     def finalize(self,):
