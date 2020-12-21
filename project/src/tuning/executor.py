@@ -85,8 +85,8 @@ class Executor:
         return self.pool.apply_async(
             self.domain.create_task_runner(is_slurm=self.on_slurm, params=params).run,
             kwds={"worker_id":worker_id},
-            callback= lambda: self.tokens.put(worker_id) ,
-            error_callback=lambda: self.tokens.put(worker_id),
+            callback= lambda x: self.tokens.put(worker_id) ,
+            error_callback=lambda x: self.tokens.put(worker_id),
         )
 
     def finalize(self,):
