@@ -15,16 +15,15 @@ class Father(abc.ABC):
         self.fitness_list = []
         self.fitness_list_past = []
         self.current_population = []
-
-        self.generation_change = 0
         self.current_generation = 1
+        self.rewards = np.zeros(self.param_dictionary["generation_max"])
 
     def eval(self, individual):
-            rewards_array = [] # array muss noch eingefügt werden
-            winner = max(rewards_array)
-            speed = self.convergence_speed(rewards_array)
+            rewards_array = [] # array muss noch eingefügt werden über Individual n, slurm log
+            winner = max(rewards_array) #alternativ ginge noch der durchschnittliche reward
             stability = self.stability(rewards_array)
-            return(speed* (stability*2) *winner /4)
+            speed = self.convergence_speed(rewards_array)
+            return(speed + (stability*2) + winner /4) #prüfen auf gewichtung
 
     @abc.abstractmethod
     def _new_population(self):
@@ -50,26 +49,24 @@ class Father(abc.ABC):
     def _select(self):
         pass
 
+    def output(self):
+        for n,m in self.current_population, self.fitness_list:
+            rewards_array = []
+            gamma = n[0]
+            alpha = n[1]
+            reward = m #angegebene daten printen lassen
+
     def convergence_speed(self, rewards):
-        conSpeed = 0 #ableitung quadrieren, negativ VZ und positiv VZ Fallunterscheidung
-        for n in range(201):
-            if n % 20 != 0 and m != n:
-                zaehler = (max(self.winner[m:n]) - self.winner[m]) + zaehler
-            else:
-                conSpeed_m = zaehler / (20 * (self.global_maximum[m] - self.winner[m]))
-                conSpeed = conSpeed + conSpeed_m
-                conSpeed_m = 0
-                zaehler = 0
-                if n > 0 and m < 180:
-                    m = m + 20
-        self.avg_con_speed = 1 / 9 * conSpeed
-        return self.avg_con_speed
+        conSpeed = sum(self.rewards/len(rewards)) * max(rewards).index() #durchschnittliche Steigung
+        return conSpeed
 
     def stability(self, rewards):
-                Stability = [0 for i in range(self.param_dictionary["generation_max"])]
                 for k in range(len(rewards)):
-                    Stability[k] = rewards[k] / rewards[k - 1]
-                AvgStability = sum([i for i in Stability]) / len(rewards)
+                    try:
+                        self.rewards[k] = rewards[k] - rewards[k - 1]
+                    except IndexError:
+                        self.rewards[k] #negativ bei abfall, positiv bei steigung
+                AvgStability = sum([i for i in self.rewards]) / len(rewards)
                 return AvgStability
 
 
