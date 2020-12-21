@@ -1,34 +1,67 @@
-from .Father import Father
 import numpy as np
 import random
 
-class EAsimple(Father):
+class EAsimple():
+
+    def __init__(self, executor, domain,  param_dictionary):
+        """
+        Parameter hier übergeben.
+        :param param_dictionary: Dictionary mit einzelnen Parametern für den Algorithmus.
+        """
+        self.__dict__.update(param_dictionary)
+        self.executor = executor
+        self.domain = domain
+        self.winner = []
+        self.global_maximum = []
+        self.fitness_list = []
+        self.fitness_list_past = []
+        self.current_population = []
+        self.current_generation = 1
+        self.rewards = np.zeros(self.param_dictionary["generation_max"])
+
 
     def run(self):
-        self._new_population()
-        self._evaluate()
+        self.new_population()
+        self.evaluate()
         self.output()
         for i in range(self.generation_max):
-            self._mate()
-            self._mutate()
-            self._evaluate()
-            self._select()
+            self.mate()
+            self.mutate()
+            self.evaluate()
+            self.select()
             self.output()
 
-    def _new_population(self):
+    def new_population(self):
         self.current_population = []
         for i in range(self.population_max):
             gamma = random.uniform(0.9, 1)
-            alpha = random.uniform(0.00001, 0.2)
-            self.current_population.append([gamma, alpha])
+            epsilon = random.uniform(0.001, 10)
+            new_h = 
+            self.current_population.append([gamma, epsilon])
+    
+    def unwrap_params(self, individual):
+        params = {}
+        for index, value in enumerate(individual):
+            params[self.domain.param_dict[index].0] = value
+        return params
 
-    def _evaluate(self):
+
+    def evaluate(self):
         fitness_list = []
-        for n in self.current_population:
-            fitness_list.append(self.eval(n))
-        self.fitness_list = fitness_list
+        futures = [self.eval(i) for i in self.current_population]
+        for future in futures:
+            rewards_array = future.get()
+            winner = max(rewards_array) #alternativ ginge noch der durchschnittliche reward 
+            stability = self.stability(rewards_array)
+            speed = self.convergence_speed(rewards_array)
+            fitness = (speed + (stability*2) + winner /4) #prüfen auf gewichtung
+            self.fitness_list.append(fitness)
+        return fitness_list
+    
+    def eval(self, individual):
+        return executor.submit_task(self.unwrap_params(individual))
 
-    def _mate(self):
+    def mate(self):
         index_current_population_mate = []
         a = 0
         for individual_index in self.current_population:
@@ -48,7 +81,7 @@ class EAsimple(Father):
                 if child not in self.current_population:
                     self.current_population.append(child)
 
-    def _mutate(self):
+    def mutate(self):
         new_current_population = []
         for position in self.current_population:
             new_position = []
@@ -57,14 +90,14 @@ class EAsimple(Father):
                     if 0 == position.index(coordinate):
                         new_coordinate = random.uniform(0.9, 1)
                     else:
-                        new_coordinate = random.uniform(0.00001, 0.2)
+                        new_coordinate = random.uniform(0.001, 10)
                     new_position.append(new_coordinate)
                 else:
                     new_position.append(coordinate)
             new_current_population.append(new_position)
         self.current_population = new_current_population
 
-    def _select(self):
+    def select(self):
         index_current_population_select = []
         a = 0
         for individual_index in self.current_population:
@@ -82,6 +115,24 @@ class EAsimple(Father):
             del self.current_population[index]
 
         self.current_generation = self.current_generation + 1
-        n
 
 
+    def output(self):
+        for n,m in self.current_population, self.fitness_list:
+            rewards_array = []
+            gamma = n[0]
+            epsilon = n[1]
+            reward = m #angegebene daten printen lassen
+
+    def convergence_speed(self, rewards):
+        conSpeed = sum(self.rewards/len(rewards)) * max(rewards).index() #durchschnittliche Steigung
+        return conSpeed
+
+    def stability(self, rewards):
+                for k in range(len(rewards)):
+                    try:
+                        self.rewards[k] = rewards[k] - rewards[k - 1]
+                    except IndexError:
+                        self.rewards[k] #negativ bei abfall, positiv bei steigung
+                AvgStability = sum([i for i in self.rewards]) / len(rewards)
+                return AvgStability

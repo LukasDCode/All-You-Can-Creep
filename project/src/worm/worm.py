@@ -67,12 +67,14 @@ def run_with_params(env_render, training_episodes,params,):
     env_render=env_render) for i in range(training_episodes)]
   return returns
 
-'''
 class WormDomainAdaptor(DomainTrainingAdaptor):
 
     def run(self,params):
         training_episodes = 2000
         return run_with_params(training_episodes, params)
+    
+    def param_dict(self,):
+        pass
 
     def python_run_command(self,params):
         """Specifies the command to be run by slurm within the repository"""
@@ -88,7 +90,7 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
         # FIXME proper solution
         # filter with episodes and collect values
         pass
-'''
+
 
 def parse_config():
   parser = argparse.ArgumentParser(description='Run worms with hyper params')

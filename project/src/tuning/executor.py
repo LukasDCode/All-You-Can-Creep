@@ -2,6 +2,13 @@ import multiprocessing as mp
 
 class Domain:
 
+    def param_dict(self):
+        example  = [
+            ("nme", min, max),  
+            ("name", min, max),  
+        ]
+        return 
+
     def create_task_runner(self, is_slurm, params):
         return self.create_slurm_runner(params) if is_slurm else self.create_local_runner(params)
         # returns TaskRunner
