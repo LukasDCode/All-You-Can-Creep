@@ -2,6 +2,7 @@ import pdb
 from sys import platform
 import matplotlib.pyplot as plot
 import gym
+import argparse
 
 from gym_unity.envs import UnityToGymWrapper
 from mlagents_envs.environment import UnityEnvironment
@@ -83,12 +84,21 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
         pass
 '''
 
+def parse_config():
+  parser = argparse.ArgumentParser(description='Run worms with hyper params')
+  parser.add_argument('-a','--alpha', type=float, default=0.001, help='the learning rate')
+  parser.add_argument('-g','--gamma', type=float, default=0.99 ,help='the discount factor for rewards')
+  parser.add_argument('-n','--episodes', type=int, default=2000, help='training episodes')
+  return parser.parse_args()
+
+
 def main():
+  config = parse_config
   params = {}
   # Hyperparameters
-  params["gamma"] = 0.99
-  params["alpha"] = 0.001
-  training_episodes = 2000
+  params["gamma"] = config.gamma
+  params["alpha"] = config.alpha
+  training_episodes = config.episodes
   returns = run_with_params(training_episodes,params)
 
   x = range(training_episodes)
