@@ -7,13 +7,12 @@ class EAsimple(Father):
     def run(self):
         self._new_population()
         self._evaluate()
-        self.output()
         for i in range(self.generation_max):
             self._mate()
             self._mutate()
             self._evaluate()
             self._select()
-            self.output()
+        self.convergence_speed()
 
     def _new_population(self):
         self.current_population = []
@@ -82,6 +81,6 @@ class EAsimple(Father):
             del self.current_population[index]
 
         self.current_generation = self.current_generation + 1
-        n
+        #nach jeder generation soll die liste der rewards + settingsbeschreibung + bewertung gespeichert werden
 
 
