@@ -89,7 +89,7 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
           "rewards" : rewards,
           "exploration": [],
         }
-        with open(self.result_base_name + uuid4() +".json") as file:
+        with open(self.result_base_name + str(uuid4()) +".json") as file:
           json.dump(result_dump, file)
         return rewards
     
