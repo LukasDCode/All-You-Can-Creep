@@ -6,6 +6,8 @@ import gym
 import argparse
 import json
 from uuid import uuid4
+from collections import defaultdict
+import itertools
 
 from gym_unity.envs import UnityToGymWrapper
 from mlagents_envs.environment import UnityEnvironment
@@ -27,7 +29,7 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
 
 
     def run(self,worker_id, params):
-        (rewards) = self.run_with_params(
+        (rewards, losses_dicts) = self.run_with_params(
           worker_id=worker_id,
           params=params,
         )
@@ -35,7 +37,7 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
           "algorithm": "a2c",
           "params" : params,
           "rewards" : rewards,
-          "exploration": [],
+          "losses" : losses_dicts,
         }
         with open(self.result_base_name + str(uuid4()) +".json",'w+') as file:
           json.dump(result_dump, file)
@@ -61,12 +63,14 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
           # 2. Execute selected action
           next_state, reward, done, _ = env.step(action)
             # 3. Integrate new experience into agent
-          agent.update(state, action, reward, next_state, done)
+          losses_dict = agent.update(state, action, reward, next_state, done)
           state = next_state
           undiscounted_return += reward
           time_step += 1
       print(nr_episode, ":", undiscounted_return)
-      return undiscounted_return
+
+
+      return undiscounted_return, losses_dict
 
 
     def run_with_params(self, worker_id, params,):
@@ -95,10 +99,21 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
       # Agent setup
       agent = A2CLearner(params)
       # train
-      returns = [
+      results = [
         self.episode(env, agent, nr_episode=i,)
         for i in range(self.training_episodes)]
-      return returns
+      
+      returns, losses_dicts = zip(*results)
+
+      def flatmap(func, *iterable):
+        return itertools.chain.from_iterable(map(func, *iterable))
+
+      squeezed_losses_dicts = defaultdict(list)
+      #for key,value in [entry for d in losses_dicts for entry in d.items()]:
+      for key,value in flatmap(lambda d: d.items(), losses_dicts):
+          squeezed_losses_dicts[key].append(value)
+
+      return returns, squeezed_losses_dicts 
           
 
 
