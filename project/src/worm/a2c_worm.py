@@ -6,6 +6,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
 
+from .agent import Agent
+
 class A2CNet(nn.Module):
     def __init__(self, nr_input_features, nr_actions):
         super(A2CNet, self).__init__()
@@ -18,11 +20,11 @@ class A2CNet(nn.Module):
         )
         self.action_head_loc = nn.Sequential( # Actor LOC-Ausgabe von Policy
             nn.Linear(nr_hidden_units, nr_actions),
-            nn.Tanh()
+            #nn.Tanh()
         ) 
         self.action_head_scale = nn.Sequential( # Actor SCALE-Ausgabe von Policy
             nn.Linear(nr_hidden_units, nr_actions),
-            nn.Softplus()  
+            #nn.Softplus()  
         ) # Actor = Policy-Function NN
         self.value_head = nn.Linear(nr_hidden_units, 1) # Critic = Value-Function NN
 
@@ -35,7 +37,7 @@ class A2CNet(nn.Module):
 """
  Autonomous agent using Synchronous Actor-Critic.
 """
-class A2CLearner:
+class A2CLearner(Agent):
 
     def __init__(self, params):
         self.eps = numpy.finfo(numpy.float32).eps.item()
@@ -57,18 +59,6 @@ class A2CLearner:
         m = torch.distributions.normal.Normal(action_locs, action_scales)
         return m.sample().detach().cpu().numpy()
 
-    # Fliegt in Zukunft raus
-    """
-    def call(self, states, agent_states):
-        states_v = ptan.agent.float32_preprocessor(states).to(self.device)
-
-        mu_v, var_v, _ = self.net(states_v)
-        mu = mu_v.data.cpu().numpy()
-        sigma = torch.sqrt(var_v).data.cpu().numpy()
-        actions = np.random.normal(mu, sigma)
-        actions = np.clip(actions, -1, 1)
-        return actions, agent_states
-    """
 
     """
      Predicts the action probabilities.
@@ -84,10 +74,6 @@ class A2CLearner:
         states = torch.tensor(states, device=self.device, dtype=torch.float)
         return self.value_net(states)
 
-    def calc_logprob(self, loc_value, scale_value, action):
-        p1 = - ((loc_value - action) ** 2) / (2*scale_value.clamp(min=1e-3))
-        p2 = - torch.log(torch.sqrt(2 * math.pi * scale_value))
-        return p1 + p2
         
     """
      Performs a learning update of the currently learned policy and value function.
@@ -95,21 +81,12 @@ class A2CLearner:
     def update(self, state, action, reward, next_state, done):
         self.transitions.append((state, action, reward, next_state, done))
         # 64 Werte fuer state, 9 Werte fuer action, 1 Wert fuer reward, 64 Werte fuer next_state, 1 boolean fuer done
-        # print("letzte transition")
-        # print(self.transitions[-1])
-        loss = None
+
         if done:
             states, actions, rewards, next_states, dones = tuple(zip(*self.transitions))
-            discounted_returns = []
-
-            # loc, scale -> normalverteilung -> actions
-            # observation -> how good
-            # viele sample action -> MLE -> loc_new, scale_new
-            # MSE 
-
-            # MSE loss + value loss (actor critic)
             
             # Calculate and normalize discounted returns
+            discounted_returns = []
             R = 0
             for reward in reversed(rewards):
                 R = reward + self.gamma*R
@@ -122,66 +99,45 @@ class A2CLearner:
 
             # Calculate losses of policy and value function
             actions = torch.tensor(actions, device=self.device, dtype=torch.long)
-            (action_loc, action_scale), state_values = self.predict_policy(states) # Tupel + value_head --- return aus Zeile 29: tupel((action_probs_loc, action_probs_scale), state_values)
+            (action_locs, action_scales), state_values = self.predict_policy(states) # Tupel + value_head --- return aus Zeile 29: tupel((action_probs_loc, action_probs_scale), state_values)
             states = torch.tensor(states, device=self.device, dtype=torch.float)
-            print("Action Scale")
-            print(action_scale)
-            print(action_scale.size())
-            policy_losses = []
-
-            policy_losses_loc = []
-            policy_losses_scale = []
-
-            value_losses = []
-            for probs_loc, probs_scale, action, value, R in zip(action_loc, action_scale, actions, state_values, normalized_returns):
-            #for probs, action_loc,action_scale, value, R in zip(action_probs, actions[0], actions[1], state_values, normalized_returns):
-                ENTROPY_BETA = 1e-4 # vielleicht als Hyperparameter
-                advantage = R - value.item()
 
 
-                loss_value = F.mse_loss(value.squeeze(-1), R)
+            def _loss_basic():
+                loc_losses, scale_losses = [], []
+                for action_loc, action_scale, action, value, R in zip(action_locs, action_scales, actions, state_values, normalized_returns):
+                    advantage = R - value.item()
+                    loc_loss = F.mse_loss(input=action_loc, target=action) * advantage
+                    scale_loss = nn.Softplus(action_scale) * advantage
 
-                log_prob_v = advantage * self.calc_logprob(probs_loc, probs_scale, action)
+                    loc_losses.append(loc_loss)
+                    scale_losses.append(scale_losses)
 
-                loss_policy_v = -log_prob_v.mean()
-                entropy_loss_v = ENTROPY_BETA * (-(torch.log(2*math.pi*probs_scale) + 1)/2).mean()
+                return torch.stack(loc_losses).sum() + torch.stack(scale_losses).sum()
 
-                policy_losses_loc.append(loss_policy_v)
-                policy_losses_scale.append(entropy_loss_v)
-                value_losses.append(loss_value)
-
-                '''
-                print("List values")
-                print(policy_losses_loc[-1])
-                print(policy_losses_scale[-1])
-                print(value_losses[-1])
-                '''
+            def _loss_other():
+                policy_losses_loc = []
+                policy_losses_scale = []
+                value_losses = []
+                for action_loc, action_scale, action, value, R in zip(action_locs, action_scales, actions, state_values, normalized_returns):
+                  ENTROPY_BETA = 1e-4 # vielleicht als Hyperparameter
+                  advantage = R - value.item()
+                  loss_value = F.mse_loss(value.squeeze(-1), R)
+                  def calc_logprob():
+                      p1 = - ((action_loc - action) ** 2) / (2*action_scale.clamp(min=1e-3))
+                      p2 = - torch.log(torch.sqrt(2 * math.pi * action_scale))
+                      return p1 + p2
+                  log_prob = advantage * calc_logprob()
+                  loss_policy = -log_prob.mean()
+                  entropy_loss = ENTROPY_BETA * (-(torch.log(2*math.pi*action_scale) + 1)/2).mean()
+  
+                  policy_losses_loc.append(loss_policy)
+                  policy_losses_scale.append(entropy_loss)
+                  value_losses.append(loss_value)
                 
-                # Zeile drunter ist nur wichtig für den diskreten Fall
-                # m = torch.distributions.normal.Normal(probs_loc, probs_scale)
-                
-                # in der Zeile drunter steht der 'alte' policy_loss
-                # policy_losses.append(-m.log_prob(action) * advantage) # tensor([[ nan, -0.3500, nan, -0.7136, -0.0231, nan, nan, nan, 0.0866]], grad_fn=<MulBackward0>)
-                # policy_losses.append((F.mse_loss(action, probs_loc) + F.softplus(probs_scale))*advantage) # tensor(0.0596, grad_fn=<MseLossBackward>)
-                # policy_losses_loc.append(F.mse_loss(action, probs_loc)*advantage)
-                # policy_losses_scale.append(F.softplus(probs_scale)*advantage)
-                
-                # in der Zeile drunter steht der 'alte' value_loss
-                # value_losses.append(F.mse_loss(value, torch.tensor([R]))) # tensor([ 0.4873,  0.0398, -0.3586,  0.6294,  0.3986, -0.9495, -0.9261, -0.6679, 0.5093], grad_fn=<UnbindBackward>)
-                
-                # value_losses.append(F.mse_loss(value, torch.tensor([R])))
-                # print("value Loss")
-                # print(value_losses[-1])
-
-                # mü = probs_loc und sigma = probs_scale
-
-            # Zeile drunter is die alte loss Summe
-            # loss = torch.stack(policy_losses).sum() + torch.stack(value_losses).sum() # mean squared loss
-            # loss = torch.stack(policy_losses_loc).sum() + torch.stack(policy_losses_scale).sum() + torch.stack(value_losses).sum()
+                return torch.stack(policy_losses_loc).sum() + torch.stack(policy_losses_scale).sum() + torch.stack(value_losses).sum()
             
-            # loss --> tensor(nan, grad_fn=<AddBackward0>)
-            # loss.item() --> nan
-            loss = loss_policy_v.sum() + entropy_loss_v.sum() + loss_value.sum()
+            loss = _loss_basic()
 
             # Optimize joint loss
             self.optimizer.zero_grad()
