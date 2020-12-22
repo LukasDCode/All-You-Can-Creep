@@ -104,16 +104,21 @@ class A2CLearner(Agent):
 
 
             def _loss_basic():
-                loc_losses, scale_losses = [], []
+                loc_losses, scale_losses, value_losses = [], [], []
                 for action_loc, action_scale, action, value, R in zip(action_locs, action_scales, actions, state_values, normalized_returns):
                     advantage = R - value.item() #a2c
                     # advantage = reward + ( next_value.item() - value.item()) # temporal difference learning
                     # advantage = R # reenforcement learning
+
+                    entropy = 1e-4 #
+
                     loc_loss = F.mse_loss(input=action_loc, target=action) * advantage
-                    scale_loss = (action_scale * advantage).mean()
+                    scale_loss = entropy * (action_scale * advantage).mean()
+                    value_loss = F.smooth_l1_loss(value, torch.tensor([R]))
 
                     loc_losses.append(loc_loss)
                     scale_losses.append(scale_loss)
+                    value_losses.append(value_loss)
 
                 print("loc_losses")
                 print(loc_losses[-1])
@@ -121,7 +126,7 @@ class A2CLearner(Agent):
                 print("scale_losses")
                 print(scale_losses[-1])
 
-                return torch.stack(loc_losses).sum() + torch.stack(scale_losses).sum()
+                return torch.stack(loc_losses).sum() + torch.stack(scale_losses).sum() + torch.stack(value_losses).sum()
 
             def _loss_other():
                 policy_losses_loc = []
