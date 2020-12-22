@@ -127,11 +127,11 @@ class A2CLearner(Agent):
                 final_value_loss =torch.stack(value_losses).sum()
                 final_loss =  final_loc_loss + final_scale_loss + final_value_loss
 
-                tracking =  {
+                measures =  {
                     "loss":final_loss, 
                     "loc_loss": final_loc_loss,
                 }
-                return final_loss, tracking
+                return final_loss, measures
 
             def _loss_other():
                 policy_losses_loc = []
@@ -158,15 +158,15 @@ class A2CLearner(Agent):
                 final_loss_scale = torch.stack(policy_losses_scale).sum() 
                 final_entropy_loss = torch.stack(value_losses).sum()
                 final_loss = final_loss_loc + final_loss_scale + final_entropy_loss
-                tracking = {
+                measures = {
                     "loss": final_loss.detach().cpu().item(),
                     "loss_loc": final_loss_loc.detach().cpu().item(),
                     "loss_scale": final_loss_scale.detach().cpu().item(),
                     "loss_entropy" : final_entropy_loss.detach().cpu().item(),
                 }
-                return final_loss,tracking 
+                return final_loss,measures 
             
-            loss, tracking = _loss_other()
+            loss, measures = _loss_other()
 
             # Optimize joint loss
             self.optimizer.zero_grad()
@@ -176,6 +176,6 @@ class A2CLearner(Agent):
             # Don't forget to delete all experiences afterwards! This is an on-policy algorithm.
             self.transitions.clear()
 
-            return tracking
+            return measures
 
         return None

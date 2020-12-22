@@ -36,8 +36,7 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
         result_dump = {
           "algorithm": "a2c",
           "params" : params,
-          "rewards" : rewards,
-          "losses" : losses_dicts,
+          "measures" : {"rewards" : rewards, **losses_dicts}
         }
         with open(self.result_base_name + str(uuid4()) +".json",'w+') as file:
           json.dump(result_dump, file, indent=2)
