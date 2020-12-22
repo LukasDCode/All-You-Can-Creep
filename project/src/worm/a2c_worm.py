@@ -98,7 +98,7 @@ class A2CLearner(Agent):
             normalized_returns /= (discounted_returns.std() + self.eps)
 
             # Calculate losses of policy and value function
-            actions = torch.tensor(actions, device=self.device, dtype=torch.long)
+            actions = torch.tensor(actions, device=self.device, dtype=torch.float)
             (action_locs, action_scales), state_values = self.predict_policy(states) # Tupel + value_head --- return aus Zeile 29: tupel((action_probs_loc, action_probs_scale), state_values)
             states = torch.tensor(states, device=self.device, dtype=torch.float)
 
@@ -108,10 +108,16 @@ class A2CLearner(Agent):
                 for action_loc, action_scale, action, value, R in zip(action_locs, action_scales, actions, state_values, normalized_returns):
                     advantage = R - value.item()
                     loc_loss = F.mse_loss(input=action_loc, target=action) * advantage
-                    scale_loss = nn.Softplus(action_scale) * advantage
+                    scale_loss = (nn.Softplus()(action_scale) * advantage).mean()
 
                     loc_losses.append(loc_loss)
-                    scale_losses.append(scale_losses)
+                    scale_losses.append(scale_loss)
+
+                print("loc_losses")
+                print(loc_losses[-1])
+
+                print("scale_losses")
+                print(scale_losses[-1])
 
                 return torch.stack(loc_losses).sum() + torch.stack(scale_losses).sum()
 
@@ -147,4 +153,6 @@ class A2CLearner(Agent):
             # Don't forget to delete all experiences afterwards! This is an on-policy algorithm.
             self.transitions.clear()
 
-        return loss
+            return loss
+
+        return None
