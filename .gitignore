@@ -1,6 +1,7 @@
 project/Unity/**
 **/__pycache__/
 **/.vscode/
+**/.vs/
 .idea
 .vscode
 Unity/
