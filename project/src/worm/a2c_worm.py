@@ -120,11 +120,7 @@ class A2CLearner(Agent):
                     scale_losses.append(scale_loss)
                     value_losses.append(value_loss)
 
-                print("loc_losses")
-                print(loc_losses[-1])
-
-                print("scale_losses")
-                print(scale_losses[-1])
+ 
 
                 final_loc_loss = torch.stack(loc_losses).sum() 
                 final_scale_loss = torch.stack(scale_losses).sum() 
@@ -156,23 +152,17 @@ class A2CLearner(Agent):
                   policy_losses_loc.append(loss_policy)
                   policy_losses_scale.append(entropy_loss)
                   value_losses.append(loss_value)
-                
-                print("loc_losses")
-                print(policy_losses_loc[-1])
-                print("scale_losses")
-                print(policy_losses_scale[-1])
-                print("value_losses")
-                print(value_losses[-1])
+ 
 
                 final_loss_loc = torch.stack(policy_losses_loc).sum() 
                 final_loss_scale = torch.stack(policy_losses_scale).sum() 
                 final_entropy_loss = torch.stack(value_losses).sum()
                 final_loss = final_loss_loc + final_loss_scale + final_entropy_loss
                 tracking = {
-                    "loss": final_loss,
-                    "loss_loc": final_loss_loc,
-                    "loss_scale": final_loss_scale,
-                    "loss_entropy" : final_entropy_loss,
+                    "loss": final_loss.detach().cpu().item(),
+                    "loss_loc": final_loss_loc.detach().cpu().item(),
+                    "loss_scale": final_loss_scale.detach().cpu().item(),
+                    "loss_entropy" : final_entropy_loss.detach().cpu().item(),
                 }
                 return final_loss,tracking 
             
