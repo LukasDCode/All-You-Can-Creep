@@ -20,7 +20,7 @@ class A2CNet(nn.Module):
         )
         self.action_head_loc = nn.Sequential( # Actor LOC-Ausgabe von Policy
             nn.Linear(nr_hidden_units, nr_actions),
-            #nn.Tanh()
+            nn.Tanh(),
         ) 
         self.action_head_scale = nn.Sequential( # Actor SCALE-Ausgabe von Policy
             nn.Linear(nr_hidden_units, nr_actions),
@@ -110,10 +110,10 @@ class A2CLearner(Agent):
                     # advantage = reward + ( next_value.item() - value.item()) # temporal difference learning
                     # advantage = R # reenforcement learning
 
-                    entropy = 1e-4 #
+                    entropy = 1e-4 #factor for gradient of scale
 
                     loc_loss = F.mse_loss(input=action_loc, target=action) * advantage
-                    scale_loss = entropy * (action_scale * advantage).mean()
+                    scale_loss = entropy * (action_scale).mean() * advantage
                     value_loss = F.smooth_l1_loss(value, torch.tensor([R]))
 
                     loc_losses.append(loc_loss)
@@ -126,7 +126,16 @@ class A2CLearner(Agent):
                 print("scale_losses")
                 print(scale_losses[-1])
 
-                return torch.stack(loc_losses).sum() + torch.stack(scale_losses).sum() + torch.stack(value_losses).sum()
+                final_loc_loss = torch.stack(loc_losses).sum() 
+                final_scale_loss = torch.stack(scale_losses).sum() 
+                final_value_loss =torch.stack(value_losses).sum()
+                final_loss =  final_loc_loss + final_scale_loss + final_value_loss
+
+                tracking =  {
+                    "loss":final_loss, 
+                    "loc_loss": final_loc_loss,
+                }
+                return final_loss, tracking
 
             def _loss_other():
                 policy_losses_loc = []
@@ -141,16 +150,33 @@ class A2CLearner(Agent):
                       p2 = - torch.log(torch.sqrt(2 * math.pi * action_scale))
                       return p1 + p2
                   log_prob = advantage * calc_logprob()
-                  loss_policy = -log_prob.mean()
+                  loss_policy = -log_prob.mean() # mean of MSE
                   entropy_loss = ENTROPY_BETA * (-(torch.log(2*math.pi*action_scale) + 1)/2).mean()
   
                   policy_losses_loc.append(loss_policy)
                   policy_losses_scale.append(entropy_loss)
                   value_losses.append(loss_value)
                 
-                return torch.stack(policy_losses_loc).sum() + torch.stack(policy_losses_scale).sum() + torch.stack(value_losses).sum()
+                print("loc_losses")
+                print(policy_losses_loc[-1])
+                print("scale_losses")
+                print(policy_losses_scale[-1])
+                print("value_losses")
+                print(value_losses[-1])
+
+                final_loss_loc = torch.stack(policy_losses_loc).sum() 
+                final_loss_scale = torch.stack(policy_losses_scale).sum() 
+                final_entropy_loss = torch.stack(value_losses).sum()
+                final_loss = final_loss_loc + final_loss_scale + final_entropy_loss
+                tracking = {
+                    "loss": final_loss,
+                    "loss_loc": final_loss_loc,
+                    "loss_scale": final_loss_scale,
+                    "loss_entropy" : final_entropy_loss,
+                }
+                return final_loss,tracking 
             
-            loss = _loss_basic()
+            loss, tracking = _loss_other()
 
             # Optimize joint loss
             self.optimizer.zero_grad()
@@ -160,6 +186,6 @@ class A2CLearner(Agent):
             # Don't forget to delete all experiences afterwards! This is an on-policy algorithm.
             self.transitions.clear()
 
-            return loss
+            return tracking
 
         return None
