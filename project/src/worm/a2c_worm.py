@@ -24,7 +24,7 @@ class A2CNet(nn.Module):
         ) 
         self.action_head_scale = nn.Sequential( # Actor SCALE-Ausgabe von Policy
             nn.Linear(nr_hidden_units, nr_actions),
-            #nn.Softplus()  
+            nn.Softplus(),
         ) # Actor = Policy-Function NN
         self.value_head = nn.Linear(nr_hidden_units, 1) # Critic = Value-Function NN
 
@@ -106,9 +106,11 @@ class A2CLearner(Agent):
             def _loss_basic():
                 loc_losses, scale_losses = [], []
                 for action_loc, action_scale, action, value, R in zip(action_locs, action_scales, actions, state_values, normalized_returns):
-                    advantage = R - value.item()
+                    advantage = R - value.item() #a2c
+                    # advantage = reward + ( next_value.item() - value.item()) # temporal difference learning
+                    # advantage = R # reenforcement learning
                     loc_loss = F.mse_loss(input=action_loc, target=action) * advantage
-                    scale_loss = (nn.Softplus()(action_scale) * advantage).mean()
+                    scale_loss = (action_scale * advantage).mean()
 
                     loc_losses.append(loc_loss)
                     scale_losses.append(scale_loss)

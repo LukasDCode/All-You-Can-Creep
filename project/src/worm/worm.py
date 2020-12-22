@@ -16,62 +16,6 @@ from ..tuning.executor import Domain as DomainTrainingAdaptor
 from ..tuning.executor import Executor
 
 
-
-def episode(env, agent, nr_episode=0, env_render=False):
-    state = env.reset()
-
-    undiscounted_return = 0
-    done = False
-    time_step = 0
-    while not done:
-        if env_render:
-          env.render()
-        # 1. Select action according to policy
-        action = agent.policy(state)
-        # 2. Execute selected action
-        next_state, reward, done, _ = env.step(action)
-        # 3. Integrate new experience into agent
-        agent.update(state, action, reward, next_state, done)
-        state = next_state
-        undiscounted_return += reward
-        time_step += 1
-    print(nr_episode, ":", undiscounted_return)
-    return undiscounted_return
-
-
-def run_with_params(worker_id, env_render, training_episodes,params,):
-  params = params.copy()
-
-  # Domain setup
-  # Environment
-  channel = EngineConfigurationChannel()
-  channel.set_configuration_parameters(time_scale = 100.0)
-
-  if platform == "linux" or platform == "linux2":
-    # linux
-    unity_env = UnityEnvironment(file_name="Unity/worm_single_environment.x86_64", worker_id=worker_id, no_graphics=not env_render,side_channels=[channel])
-  elif platform == "win32":
-    # Windows...
-    unity_env = UnityEnvironment(file_name="Unity", worker_id=worker_id, no_graphics=not env_render, side_channels=[channel])
-  env = UnityToGymWrapper(unity_env)
-
-  params["nr_input_features"] = env.observation_space.shape[0] # 64
-  params["env"] = env
-  params["nr_actions"] = env.action_space.shape[0] # 9
-  params["lower_bound"] = env.action_space.low
-  params["upper_bound"] = env.action_space.high
-  params["type"] = env.action_space.dtype
-
-  # Agent setup
-  agent = A2CLearner(params)
-  # train
-  returns = [episode(
-    env, 
-    agent, 
-    nr_episode=i, 
-    env_render=env_render) for i in range(training_episodes)]
-  return returns
-
 class WormDomainAdaptor(DomainTrainingAdaptor):
 
     def __init__(self, config):
@@ -79,13 +23,12 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
         self.render_env = config.visualize
         self.training_episodes = config.episodes
         self.result_base_name = config.result
+        self.scale = config.scale
 
 
-    def run(self,worker_id,params):
-        (rewards) = run_with_params(
+    def run(self,worker_id, params):
+        (rewards) = self.run_with_params(
           worker_id=worker_id,
-          env_render=self.render_env, 
-          training_episodes=self.training_episodes, 
           params=params,
         )
         result_dump = {
@@ -103,30 +46,71 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
           ("alpha", 0.001,0.001),
           ("gamma", 0.99,1.),
         ]
-        
 
-    def python_run_command(self,params):
-        """Specifies the command to be run by slurm within the repository"""
-        # FIXME proper solution
-        # argparse interface implementation 
-        # create command passing relevant information
-        pass
+    def episode(self, env, agent, nr_episode=0):
+      state = env.reset()
 
-    def python_run_parse_log(self, logfilestring):
-        """Parses the slurm log to yield the requested values
-        returns rewards [float]
-        """
-        # FIXME proper solution
-        # filter with episodes and collect values
-        pass
+      undiscounted_return = 0
+      done = False
+      time_step = 0
+      while not done:
+          if self.render_env:
+            env.render()
+          # 1. Select action according to policy
+          action = agent.policy(state)
+          # 2. Execute selected action
+          next_state, reward, done, _ = env.step(action)
+            # 3. Integrate new experience into agent
+          agent.update(state, action, reward, next_state, done)
+          state = next_state
+          undiscounted_return += reward
+          time_step += 1
+      print(nr_episode, ":", undiscounted_return)
+      return undiscounted_return
+
+
+    def run_with_params(self, worker_id, params,):
+      params = params.copy()
+
+      # Domain setup
+      # Environment
+      channel = EngineConfigurationChannel()
+      channel.set_configuration_parameters(time_scale = self.scale)
+
+      if platform == "linux" or platform == "linux2":
+        # linux
+        unity_env = UnityEnvironment(file_name="Unity/worm_single_environment.x86_64", worker_id=worker_id, no_graphics=not self.render_env,side_channels=[channel])
+      elif platform == "win32":
+        # Windows...
+        unity_env = UnityEnvironment(file_name="Unity", worker_id=worker_id, no_graphics=not self.render_env, side_channels=[channel])
+      env = UnityToGymWrapper(unity_env)
+
+      params["nr_input_features"] = env.observation_space.shape[0] # 64
+      params["env"] = env
+      params["nr_actions"] = env.action_space.shape[0] # 9
+      params["lower_bound"] = env.action_space.low
+      params["upper_bound"] = env.action_space.high
+      params["type"] = env.action_space.dtype
+
+      # Agent setup
+      agent = A2CLearner(params)
+      # train
+      returns = [
+        self.episode(env, agent, nr_episode=i,)
+        for i in range(self.training_episodes)]
+      return returns
+          
+
+
 
 
 def parse_config():
   parser = argparse.ArgumentParser(description='Run worms with hyper params')
   parser.add_argument('-a','--alpha', type=float, default=0.001, help='the learning rate')
-  parser.add_argument('-g','--gamma', type=float, default=0.99 ,help='the discount factor for rewards')
+  parser.add_argument('-g','--gamma', type=float, default=0.99 , help='the discount factor for rewards')
   parser.add_argument('-n','--episodes', type=int, default=2000, help='training episodes')
-  parser.add_argument('-v', '--visualize', type=bool, default=False, help='call env.render')
+  parser.add_argument('-v', '--visualize', type=bool, default=False, help='call env.render')  
+  parser.add_argument('-s', '--scale', type=float, default=1.0, help='simulation speed scaling')
   parser.add_argument('-r', '--result', type=str, default="result", help='file base name to save results into')
   parser.add_argument('-p', '--parallel',type=int, default=1, help='level on parallization')
   return parser.parse_args()
