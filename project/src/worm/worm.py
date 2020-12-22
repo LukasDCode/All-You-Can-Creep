@@ -40,7 +40,7 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
           "losses" : losses_dicts,
         }
         with open(self.result_base_name + str(uuid4()) +".json",'w+') as file:
-          json.dump(result_dump, file)
+          json.dump(result_dump, file, indent=2)
         return rewards
     
     def param_dict(self):
@@ -55,6 +55,7 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
       undiscounted_return = 0
       done = False
       time_step = 0
+      losses_dict= None
       while not done:
           if self.render_env:
             env.render()
@@ -68,8 +69,6 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
           undiscounted_return += reward
           time_step += 1
       print(nr_episode, ":", undiscounted_return)
-
-
       return undiscounted_return, losses_dict
 
 
