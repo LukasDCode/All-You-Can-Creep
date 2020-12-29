@@ -79,39 +79,39 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
       channel = EngineConfigurationChannel()
       channel.set_configuration_parameters(time_scale = self.scale)
 
-      if platform == "linux" or platform == "linux2":
-        # linux
-        unity_env = UnityEnvironment(file_name="Unity/worm_single_environment.x86_64", worker_id=worker_id, no_graphics=not self.render_env,side_channels=[channel])
-      elif platform == "win32":
-        # Windows...
-        unity_env = UnityEnvironment(file_name="Unity", worker_id=worker_id, no_graphics=not self.render_env, side_channels=[channel])
-      env = UnityToGymWrapper(unity_env)
+      with UnityEnvironment(
+        file_name="Unity/worm_single_environment.x86_64" if "linux" in platform else "Unity",
+        worker_id=worker_id,
+        no_graphics=not self.render_env,
+        side_channels=[channel],
+        ) as unity_env:
+        env = UnityToGymWrapper(unity_env)
 
-      params["nr_input_features"] = env.observation_space.shape[0] # 64
-      params["env"] = env
-      params["nr_actions"] = env.action_space.shape[0] # 9
-      params["lower_bound"] = env.action_space.low
-      params["upper_bound"] = env.action_space.high
-      params["type"] = env.action_space.dtype
+        params["nr_input_features"] = env.observation_space.shape[0] # 64
+        params["env"] = env
+        params["nr_actions"] = env.action_space.shape[0] # 9
+        params["lower_bound"] = env.action_space.low
+        params["upper_bound"] = env.action_space.high
+        params["type"] = env.action_space.dtype
 
-      # Agent setup
-      agent = A2CLearner(params)
-      # train
-      results = [
-        self.episode(env, agent, nr_episode=i,)
-        for i in range(self.training_episodes)]
-      
-      returns, losses_dicts = zip(*results)
+        # Agent setup
+        agent = A2CLearner(params)
+        # train
+        results = [
+          self.episode(env, agent, nr_episode=i,)
+          for i in range(self.training_episodes)]
 
-      def flatmap(func, *iterable):
-        return itertools.chain.from_iterable(map(func, *iterable))
+        returns, losses_dicts = zip(*results)
 
-      squeezed_losses_dicts = defaultdict(list)
-      #for key,value in [entry for d in losses_dicts for entry in d.items()]:
-      for key,value in flatmap(lambda d: d.items(), losses_dicts):
-          squeezed_losses_dicts[key].append(value)
+        def flatmap(func, *iterable):
+          return itertools.chain.from_iterable(map(func, *iterable))
 
-      return returns, squeezed_losses_dicts 
+        squeezed_losses_dicts = defaultdict(list)
+        #for key,value in [entry for d in losses_dicts for entry in d.items()]:
+        for key,value in flatmap(lambda d: d.items(), losses_dicts):
+            squeezed_losses_dicts[key].append(value)
+
+        return returns, squeezed_losses_dicts
           
 
 
