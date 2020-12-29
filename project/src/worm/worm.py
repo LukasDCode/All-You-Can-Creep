@@ -1,4 +1,5 @@
 
+from os import close
 import pdb
 from sys import platform
 import matplotlib.pyplot as plot
@@ -100,12 +101,13 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
       results = [
         self.episode(env, agent, nr_episode=i,)
         for i in range(self.training_episodes)]
+
+      #not needed anymore
+      unity_env.close()
       
       returns, losses_dicts = zip(*results)
-
       def flatmap(func, *iterable):
         return itertools.chain.from_iterable(map(func, *iterable))
-
       squeezed_losses_dicts = defaultdict(list)
       #for key,value in [entry for d in losses_dicts for entry in d.items()]:
       for key,value in flatmap(lambda d: d.items(), losses_dicts):
