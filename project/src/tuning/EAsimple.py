@@ -59,7 +59,8 @@ class EAsimple():
             stability = self.stability(rewards_array)
             speed = self.convergence_speed(rewards_array)
             fitness = (speed + (stability*2) + winner /4) #prüfen auf gewichtung
-            self.fitness_list.append(fitness)
+            fitness_list.append(fitness)
+        self.fitness_list = fitness_list
         return fitness_list
     
     def eval(self, individual):
@@ -91,7 +92,7 @@ class EAsimple():
             new_individuum = []
             for index, param in enumerate(individuum):
                 if np.random.rand() < self.mutation_rate:
-                    (_,min,max) = self.domain.param_dict[index]
+                    (_,min,max) = self.domain.param_dict()[index]
                     new_param = random.uniform(min,max) 
                     new_individuum.append(new_param)
                 else:
@@ -119,8 +120,8 @@ class EAsimple():
         self.current_generation = self.current_generation + 1
 
     def convergence_speed(self, rewards):
-        conSpeed = sum(self.rewards/len(rewards)) * max(rewards).index() #durchschnittliche Steigung
-        return conSpeed
+        conSpeed = sum(self.rewards/len(rewards)) * max(rewards) #durchschnittliche Steigung
+        return conSpeed #SOFIE
 
     def stability(self, rewards):
                 for k in range(len(rewards)):
