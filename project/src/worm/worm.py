@@ -79,14 +79,14 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
       channel = EngineConfigurationChannel()
       channel.set_configuration_parameters(time_scale = self.scale)
 
-      if platform == "linux" or platform == "linux2":
-        # linux
-        unity_env = UnityEnvironment(file_name="Unity/worm_single_environment.x86_64", worker_id=worker_id, no_graphics=not self.render_env,side_channels=[channel])
-      elif platform == "win32":
-        # Windows...
-        unity_env = UnityEnvironment(file_name="Unity", worker_id=worker_id, no_graphics=not self.render_env, side_channels=[channel])
-      env = UnityToGymWrapper(unity_env)
+      unity_env = UnityEnvironment(
+        file_name="Unity/worm_single_environment.x86_64" if "linux" in platform else "Unity",
+        worker_id=worker_id,
+        no_graphics=not self.render_env,
+        side_channels=[channel],
+        )
 
+      env = UnityToGymWrapper(unity_env)
       params["nr_input_features"] = env.observation_space.shape[0] # 64
       params["env"] = env
       params["nr_actions"] = env.action_space.shape[0] # 9
