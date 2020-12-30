@@ -44,6 +44,7 @@ class A2CLearner(Agent):
         self.gamma = params["gamma"]
         self.nr_actions = params["nr_actions"]
         self.alpha = params["alpha"]
+        self.entropy = params["entropy"]
         self.nr_input_features = params["nr_input_features"]
         self.transitions = []
         self.device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
@@ -110,7 +111,7 @@ class A2CLearner(Agent):
                     # advantage = reward + ( next_value.item() - value.item()) # temporal difference learning
                     # advantage = R # reenforcement learning
 
-                    entropy = 1e-4 #factor for gradient of scale
+                    entropy = self.entropy #factor for gradient of scale
 
                     loc_loss = F.mse_loss(input=action_loc, target=action) * advantage
                     scale_loss = entropy * (action_scale).mean() * advantage
