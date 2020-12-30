@@ -70,14 +70,20 @@ class SlurmRunner(TaskRunner):
 
 class Executor:
 
-    def __init__(self, on_slurm, tasks_in_parallel, domain):
-        self.tasks_in_parallel = tasks_in_parallel
-        self.pool = mp.Pool(tasks_in_parallel)
+    """Adds executor params to argpasr config parser"""
+    @staticmethod
+    def add_parser_args(parser):
+        return parser.add_argument('-p', '--parallel',type=int, default=1, help='level on parallization')
+
+
+    def __init__(self, config, domain, on_slurm=False):
+        self.tasks_in_parallel = config.parallel
+        self.pool = mp.Pool(self.tasks_in_parallel)
         self.domain = domain
         self.on_slurm = on_slurm
 
         self.tokens = Queue()
-        for x in range(0,tasks_in_parallel):
+        for x in range(0,self.tasks_in_parallel):
           self.tokens.put(x)
 
     def submit_task(self, params):

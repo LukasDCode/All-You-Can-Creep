@@ -1,5 +1,5 @@
 
-from os import close
+from os import close, stat
 import pdb
 from sys import platform
 import matplotlib.pyplot as plot
@@ -8,18 +8,27 @@ import argparse
 import json
 from uuid import uuid4
 from collections import defaultdict
+from pathlib import Path
 import itertools
 
 from gym_unity.envs import UnityToGymWrapper
 from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 
-from .a2c_worm import A2CLearner
-from ..tuning.executor import Domain as DomainTrainingAdaptor
-from ..tuning.executor import Executor
+from .agents.a2c import A2CLearner
+from ..exec.executor import Domain as DomainTrainingAdaptor, Executor 
 
 
 class WormDomainAdaptor(DomainTrainingAdaptor):
+
+    @staticmethod
+    def add_parse_args(parser):
+      parser.add_argument('-n','--episodes', type=int, default=2000, help='training episodes')
+      parser.add_argument('-v', '--visualize', type=bool, default=False, help='call env.render')  
+      parser.add_argument('-s', '--scale', type=float, default=1, help='simulation speed scaling')
+      parser.add_argument('-r', '--result', type=str, default="result", help='file base name to save results into')
+      return parser
+
 
     def __init__(self, config):
         super().__init__()
@@ -38,7 +47,9 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
             "params": params,
             "measures": {"rewards": rewards, **losses_dicts}
         }
-        with open(self.result_base_name + str(uuid4()) + ".json", 'w+') as file:
+        result_path = Path(self.result_base_name + str(uuid4()) + ".json")
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        with result_path.open('w+') as file:
             json.dump(result_dump, file, indent=2)
         return rewards
 
@@ -113,36 +124,4 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
         # for key,value in [entry for d in losses_dicts for entry in d.items()]:
         for key, value in flatmap(lambda d: d.items(), losses_dicts):
             squeezed_losses_dicts[key].append(value)
-
         return returns, squeezed_losses_dicts
-
-
-def parse_config():
-    parser = argparse.ArgumentParser(description='Run worms with hyper params')
-    parser.add_argument('-a', '--alpha', type=float, default=0.001, help='the learning rate')
-    parser.add_argument('-g', '--gamma', type=float, default=0.99, help='the discount factor for rewards')
-    parser.add_argument('-e', '--entropy', type=float, default=1e-4, help='the exploitation rate')
-    parser.add_argument('-n', '--episodes', type=int, default=2000, help='training episodes')
-    parser.add_argument('-v', '--visualize', type=bool, default=False, help='call env.render')
-    parser.add_argument('-s', '--scale', type=float, default=10.0, help='simulation speed scaling')
-    parser.add_argument('-r', '--result', type=str, default="result", help='file base name to save results into')
-    parser.add_argument('-p', '--parallel', type=int, default=1, help='level on parallelization')
-    return parser.parse_args()
-
-
-def main():
-    config = parse_config()
-    print("Run with {}", str(config))
-    domain = WormDomainAdaptor(config)
-    with Executor(tasks_in_parallel=config.parallel, on_slurm=False, domain=domain) as executor:
-        # Hyperparameters
-        params = {}
-        params["gamma"] = config.gamma
-        params["alpha"] = config.alpha
-        params["entropy"] = config.entropy
-        future = executor.submit_task(params)
-        print(future.get())
-
-
-if __name__ == "__main__":
-    main()
