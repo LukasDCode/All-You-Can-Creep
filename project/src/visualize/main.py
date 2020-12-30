@@ -26,7 +26,7 @@ def visualize_single(config, ):
     fig.suptitle("{}-{}".format(config.name,data_key))
     
     for index, result in enumerate(result_set):
-        column, row = index % columns,math.floor((index - index % columns)/columns),
+        column, row = index % columns, math.floor((index - index % columns)/columns),
         subfig = axs[row, column]
         subfig.set_title("{} {}".format(
             result["algorithm"], str(result["params"])
@@ -102,3 +102,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# Example: python3 -m src.visualize.main -n test all test_resultsaba4faf9-ecce-49fc-9524-d382e4c0cd7c.json
+# Example: python3 -m src.visualize.main -n test single -c 1 -m rewards test_resultsaba4faf9-ecce-49fc-9524-d382e4c0cd7c.json
