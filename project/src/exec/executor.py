@@ -78,7 +78,6 @@ class Executor:
 
     def __init__(self, config, domain, on_slurm=False):
         self.tasks_in_parallel = config.parallel
-        self.pool = mp.Pool(self.tasks_in_parallel)
         self.domain = domain
         self.on_slurm = on_slurm
 
@@ -102,6 +101,7 @@ class Executor:
         self.finalize()
 
     def __enter__(self):
+        self.pool = mp.Pool(self.tasks_in_parallel)
         return self
 
 
