@@ -5,6 +5,6 @@ project/Unity/**
 .idea
 .vscode
 Unity/
-
+project/test_results*
 
 
