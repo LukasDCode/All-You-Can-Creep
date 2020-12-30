@@ -46,6 +46,7 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
         return [
             ("alpha", 0.001, 0.001),
             ("gamma", 0.99, 1.),
+            ("entropy", 1e-323, 1e-4)
         ]
 
     def episode(self, env, agent, nr_episode=0):
@@ -119,6 +120,7 @@ def parse_config():
     parser = argparse.ArgumentParser(description='Run worms with hyper params')
     parser.add_argument('-a', '--alpha', type=float, default=0.001, help='the learning rate')
     parser.add_argument('-g', '--gamma', type=float, default=0.99, help='the discount factor for rewards')
+    parser.add_argument('-e', '--entropy', type=float, default=1e-4, help='the exploitation rate')
     parser.add_argument('-n', '--episodes', type=int, default=2000, help='training episodes')
     parser.add_argument('-v', '--visualize', type=bool, default=False, help='call env.render')
     parser.add_argument('-s', '--scale', type=float, default=10.0, help='simulation speed scaling')
@@ -136,6 +138,7 @@ def main():
         params = {}
         params["gamma"] = config.gamma
         params["alpha"] = config.alpha
+        params["entropy"] = config.entropy
         future = executor.submit_task(params)
         print(future.get())
 
