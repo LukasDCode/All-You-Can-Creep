@@ -121,8 +121,6 @@ class A2CLearner(Agent):
                     scale_losses.append(scale_loss)
                     value_losses.append(value_loss)
 
- 
-
                 final_loc_loss = torch.stack(loc_losses).sum() 
                 final_scale_loss = torch.stack(scale_losses).sum() 
                 final_value_loss =torch.stack(value_losses).sum()
@@ -139,21 +137,20 @@ class A2CLearner(Agent):
                 policy_losses_scale = []
                 value_losses = []
                 for action_loc, action_scale, action, value, R in zip(action_locs, action_scales, actions, state_values, normalized_returns):
-                  ENTROPY_BETA = 1e-4 # vielleicht als Hyperparameter
-                  advantage = R - value.item()
-                  loss_value = F.mse_loss(value.squeeze(-1), R)
-                  def calc_logprob():
-                      p1 = - ((action_loc - action) ** 2) / (2*action_scale.clamp(min=1e-3))
-                      p2 = - torch.log(torch.sqrt(2 * math.pi * action_scale))
-                      return p1 + p2
-                  log_prob = advantage * calc_logprob()
-                  loss_policy = -log_prob.mean() # mean of MSE
-                  entropy_loss = ENTROPY_BETA * (-(torch.log(2*math.pi*action_scale) + 1)/2).mean()
-  
-                  policy_losses_loc.append(loss_policy)
-                  policy_losses_scale.append(entropy_loss)
-                  value_losses.append(loss_value)
- 
+                    ENTROPY_BETA = 1e-4 # vielleicht als Hyperparameter
+                    advantage = R - value.item()
+                    loss_value = F.mse_loss(value.squeeze(-1), R)
+                    def calc_logprob(): # log normal distribution
+                        p1 = - ((action_loc - action) ** 2) / (2*action_scale.clamp(min=1e-3))
+                        p2 = - torch.log(torch.sqrt(2 * math.pi * action_scale))
+                        return p1 + p2
+                    log_prob = advantage * calc_logprob()
+                    loss_policy = -log_prob.mean() # mean of MSE
+                    entropy_loss = ENTROPY_BETA * (-(torch.log(2*math.pi*action_scale) + 1)/2).mean() # soft actor critic ? where does it come from
+    
+                    policy_losses_loc.append(loss_policy)
+                    policy_losses_scale.append(entropy_loss)
+                    value_losses.append(loss_value)
 
                 final_loss_loc = torch.stack(policy_losses_loc).sum() 
                 final_loss_scale = torch.stack(policy_losses_scale).sum() 
@@ -164,6 +161,7 @@ class A2CLearner(Agent):
                     "loss_loc": final_loss_loc.detach().cpu().item(),
                     "loss_scale": final_loss_scale.detach().cpu().item(),
                     "loss_entropy" : final_entropy_loss.detach().cpu().item(),
+                    "action_scale":  action_scales.detach().cpu().mean().numpy().mean(),
                 }
                 return final_loss,measures 
             
