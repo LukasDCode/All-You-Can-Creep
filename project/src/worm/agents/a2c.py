@@ -161,7 +161,7 @@ class A2CLearner(Agent):
                     "loss_loc": final_loss_loc.detach().cpu().item(),
                     "loss_scale": final_loss_scale.detach().cpu().item(),
                     "loss_entropy" : final_entropy_loss.detach().cpu().item(),
-                    "action_scale":  action_scales.detach().cpu().mean().numpy().mean(),
+                    "action_scale":  float(action_scales.detach().cpu().mean().numpy().mean()),
                 }
                 return final_loss,measures 
             
