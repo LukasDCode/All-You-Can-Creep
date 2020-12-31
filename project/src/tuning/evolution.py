@@ -1,6 +1,7 @@
 import argparse
 from ..worm.domain import WormDomainAdaptor
 from .EAsimple import EAsimple
+from .Gridsearch import Gridsearch
 from ..exec.executor import Executor
 
 
@@ -21,9 +22,13 @@ def main():
   config = parse_config()
   domain = WormDomainAdaptor(config)
 
+  #with Executor(config=config, domain=domain) as executor:
+    #evolution = EAsimple(executor,domain, params_eaSimple, result_tsv=config.result+".csv")
+    #evolution.run()
+
   with Executor(config=config, domain=domain) as executor:
-    evolution = EAsimple(executor,domain, params_eaSimple, result_tsv=config.result+".csv")
-    evolution.run()
+    gridsearch = Gridsearch(executor, domain, result_tsv=config.result + ".csv")
+    gridsearch.run()
     
 if __name__ == "__main__":
     main()

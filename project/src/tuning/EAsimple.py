@@ -5,8 +5,11 @@ class EAsimple():
 
     def __init__(self, executor, domain, param_dictionary, result_tsv):
         """
-        Parameter hier übergeben.
-        :param param_dictionary: Dictionary mit einzelnen Parametern für den Algorithmus.
+
+        :param executor:
+        :param domain:
+        :param param_dictionary:
+        :param result_tsv:
         """
         self.__dict__.update(param_dictionary)
         self.executor = executor
