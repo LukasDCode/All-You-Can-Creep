@@ -1,9 +1,8 @@
 class Gridsearch():
 
-    def __init__(self, executor, domain, result_tsv):
+    def __init__(self, executor, domain):
         self.executor = executor
         self.domain = domain
-        self.result_tsv = result_tsv
 
     def run(self):
 
@@ -17,7 +16,7 @@ class Gridsearch():
             for j in hyperparams["gamma"]:
                 for k in hyperparams["entropy"]:
                     individual = [i,j,k]
-                    self.executor.submit_task(self.unwrap_params(individual))
+                    self.executor.submit_task(params=self.unwrap_params(individual))
 
 
     def unwrap_params(self, individual):
