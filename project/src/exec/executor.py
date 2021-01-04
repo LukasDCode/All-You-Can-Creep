@@ -73,16 +73,19 @@ class Executor:
     """Adds executor params to argpasr config parser"""
     @staticmethod
     def add_parser_args(parser):
-        return parser.add_argument('-p', '--parallel',type=int, default=1, help='level on parallization')
+        parser.add_argument('-p', '--parallel',type=int, default=1, help='level on parallization')
+        parser.add_argument('-o', '--worker_offset', type=int, default=0, help='offset of workers')
+        return parser
 
 
     def __init__(self, config, domain, on_slurm=False):
         self.tasks_in_parallel = config.parallel
+        self.worker_offset = config.worker_offset
         self.domain = domain
         self.on_slurm = on_slurm
 
         self.tokens = Queue()
-        for x in range(0,self.tasks_in_parallel):
+        for x in range(0+self.worker_offset,self.tasks_in_parallel + self.worker_offset):
           self.tokens.put(x)
 
     def submit_task(self, params):
