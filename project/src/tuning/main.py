@@ -8,7 +8,7 @@ def parse_config():
     parser = argparse.ArgumentParser(description='Run worms with hyper params')
     Executor.add_parser_args(parser)
     WormDomainAdaptor.add_parse_args(parser)
-    parser.add_argument('-variant', '--variant', required=False, type=str, default="evolution",
+    parser.add_argument('-variant', '--variant', required=False, type=str, choices=["evolution", "gridsearch"], default="evolution",
                         help="choice of tuningvariant")
     return parser.parse_args()
 
