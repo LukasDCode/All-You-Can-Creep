@@ -44,19 +44,24 @@ class A2CNet(nn.Module):
         return state_dict
 
     # load with model.load_state_dict(torch.load(path))
-    def load_state_dict(self, state_dict, map_location=torch.device("cpu"),strict=False):
-        self.fc_net.load_state_dict(state_dict["fc_net"], strict=strict, map_location=map_location)
-        self.action_head_loc.load_state_dict(state_dict["action_head_loc"], strict=strict, map_location=map_location)
-        self.action_head_scale.load_state_dict(state_dict["action_head_scale"], stric=strict, map_location=map_location)
-        self.value_head.load_state_dict(state_dict["value_head"], strict=strict, map_location=map_location)
+    def load_state_dict(self, state_dict, strict=False):
+        self.fc_net.load_state_dict(state_dict["fc_net"], strict=strict,)
+        self.action_head_loc.load_state_dict(state_dict["action_head_loc"],)
+        self.action_head_scale.load_state_dict(state_dict["action_head_scale"],)
+        self.value_head.load_state_dict(state_dict["value_head"], strict=strict, )
         return self
-
-
 
 """
  Autonomous agent using Synchronous Actor-Critic.
 """
 class A2CLearner(Agent):
+
+    def state_dict(self):
+        return self.a2c_net.state_dict()
+
+    def load_state_dict(self, state_dict, strict=False):
+        self.a2c_net.load_state_dict(state_dict,strict=strict,)
+
 
     def __init__(self, params):
         self.eps = numpy.finfo(numpy.float32).eps.item()
