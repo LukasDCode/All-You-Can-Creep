@@ -69,6 +69,7 @@ class A2CLearner(Agent):
         self.device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda:0")
         self.a2c_net = A2CNet(self.nr_input_features, self.nr_actions).to(self.device)
         self.optimizer = torch.optim.Adam(self.a2c_net.parameters(), lr=params["alpha"])
+        self.distance_index_of_observation = 4
 
     """
      Samples a new action using the policy network.
@@ -152,9 +153,7 @@ class A2CLearner(Agent):
                 return final_loss, measures
 
             def _loss_other():
-                policy_losses_loc = []
-                policy_losses_scale = []
-                value_losses = []
+                policy_losses_loc, policy_losses_scale, value_losses, distances = [], [], [], []
                 for action_loc, action_scale, action, value, R in zip(action_locs, action_scales, actions, state_values, normalized_returns):
                     ENTROPY_BETA = 1e-4 # vielleicht als Hyperparameter
                     advantage = R - value.item()
@@ -175,12 +174,19 @@ class A2CLearner(Agent):
                 final_loss_scale = torch.stack(policy_losses_scale).sum() 
                 final_entropy_loss = torch.stack(value_losses).sum()
                 final_loss = final_loss_loc + final_loss_scale + final_entropy_loss
+                [distances.append(states.numpy()[i][self.distance_index_of_observation]) for i in range(len(states.numpy()))]
+                avg_distance = 0 if len(distances) == 0 else sum(distances)/len(distances)
                 measures = {
                     "loss": final_loss.detach().cpu().item(),
                     "loss_loc": final_loss_loc.detach().cpu().item(),
                     "loss_scale": final_loss_scale.detach().cpu().item(),
                     "loss_entropy" : final_entropy_loss.detach().cpu().item(),
                     "action_scale":  float(action_scales.detach().cpu().mean().numpy().mean()),
+                    "min_distance": float(min(distances)),
+                    "max_distance": float(max(distances)),
+                    "avg_distance": float(avg_distance),
+                    "last_distance": float(distances[-1]),
+
                 }
                 return final_loss,measures 
             
