@@ -1,72 +1,18 @@
 import multiprocessing as mp
+from uuid import uuid4
 from queue import Queue
 
 class Domain:
 
     def param_dict(self):
         example  = [
-            ("nme", min, max),  
-            ("name", min, max),  
+            ("param_name0", min, max),  
+            ("param_name1", min, max),  
         ]
         return 
 
-    def create_task_runner(self, is_slurm, params):
-        return self.create_slurm_runner(params) if is_slurm else self.create_local_runner(params=params)
-        # returns TaskRunner
-    
-    def create_slurm_runner(self, params):
-        return SlurmRunner(self, params)
-
-    def create_local_runner(self, params):
-        return DirectRunner(self, params)
-
-    def run(self,worker_id, params):
-        """Executes the run directly in memory
-        returns rewards [float]
-        """
+    def run(self, worker_id, run_id, **kwargs):
         pass
-
-    def python_run_command(self,params):
-        """Specifies the command to be run by slurm within the repository"""
-        pass
-
-    def python_run_parse_log(self, logfilestring):
-        """Parses the slurm log to yield the requested values
-        returns rewards [float]
-        """
-        pass
-        
-
-class TaskRunner:
-
-    def run(self, worker_id):
-        """executes one run with specific parameters
-        returns rewards [float] 
-        """
-        pass
-
-class DirectRunner(TaskRunner):
-
-    def __init__(self, env_spec, params):
-        self.env_spec = env_spec
-        self.params = params
-    
-    def run(self, worker_id):
-        return self.env_spec.run(worker_id, self.params)
-
-
-class SlurmRunner(TaskRunner):
-
-    def __init__(self, env_spec, params):
-        self.params = params
-        self.env_spec = env_spec
-        
-    def run(self, worker_id):
-        command = self.env_spec.python_run_command
-        # TODO
-        # start slurm job on remote machine
-        # poll slurm job on remote machine
-        # parse 
 
 class Executor:
 
@@ -74,25 +20,26 @@ class Executor:
     @staticmethod
     def add_parser_args(parser):
         parser.add_argument('-p', '--parallel',type=int, default=1, help='level on parallization')
-        parser.add_argument('-o', '--worker_offset', type=int, default=0, help='offset of workers')
+        parser.add_argument('-w', '--worker_base_id', type=int, default=0, help='offset of workers')
         return parser
 
-
-    def __init__(self, config, domain, on_slurm=False):
+    def __init__(self, config, domain):
         self.tasks_in_parallel = config.parallel
-        self.worker_offset = config.worker_offset
+        self.worker_base_id = config.worker_base_id
         self.domain = domain
-        self.on_slurm = on_slurm
 
         self.tokens = Queue()
-        for x in range(0+self.worker_offset,self.tasks_in_parallel + self.worker_offset):
+        for x in range(0+self.worker_base_id,self.tasks_in_parallel + self.worker_base_id):
           self.tokens.put(x)
 
-    def submit_task(self, params):
+    """Asynchronoulsy executes domain.run with the given **kwargs, may block if poolsize is maxed out.
+    @Returns a future
+    """
+    def submit_task(self, **kwargs):
         worker_id = self.tokens.get(block=True)
         return self.pool.apply_async(
-            self.domain.create_task_runner(is_slurm=self.on_slurm, params=params).run,
-            kwds={"worker_id":worker_id},
+            self.domain.run,
+            kwds={**kwargs, "worker_id": worker_id, "run_id": str(uuid4()), },
             callback= lambda x: self.tokens.put(worker_id) ,
             error_callback=lambda x: self.tokens.put(worker_id),
         )
