@@ -33,6 +33,25 @@ class A2CNet(nn.Module):
         # x = x.view(x.size(0), -1) # reshapes the tensor
         return (self.action_head_loc(x), self.action_head_scale(x)) ,  self.value_head(x)
 
+    # save with  torch.save(model.state_dict(), path)
+    def state_dict(self):
+        state_dict = {
+            "fc_net": self.fc_net.state_dict(),
+            "action_head_loc": self.action_head_loc.state_dict(),
+            "action_head_scale": self.action_head_scale.state_dict(),
+            "value_head": self.value_head.state_dict(),
+        }
+        return state_dict
+
+    # load with model.load_state_dict(torch.load(path))
+    def load_state_dict(self, state_dict, map_location=torch.device("cpu"),strict=False):
+        self.fc_net.load_state_dict(state_dict["fc_net"], strict=strict, map_location=map_location)
+        self.action_head_loc.load_state_dict(state_dict["action_head_loc"], strict=strict, map_location=map_location)
+        self.action_head_scale.load_state_dict(state_dict["action_head_scale"], stric=strict, map_location=map_location)
+        self.value_head.load_state_dict(state_dict["value_head"], strict=strict, map_location=map_location)
+        return self
+
+
 
 """
  Autonomous agent using Synchronous Actor-Critic.
