@@ -25,7 +25,7 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
     def add_parse_args(parser):
       parser.add_argument('-n','--episodes', type=int, default=2000, help='training episodes')
       parser.add_argument('-v', '--visualize', type=bool, default=False, help='call env.render')  
-      parser.add_argument('-s', '--scale', type=float, default=1, help='simulation speed scaling')
+      parser.add_argument('-t', '--time_scale', type=float, default=20, help='simulation speed scaling, higher values make physics less precise')
       parser.add_argument('-r', '--result', type=str, default="result", help='file base name to save results into')
       return parser
 
@@ -35,7 +35,7 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
         self.render_env = config.visualize
         self.training_episodes = config.episodes
         self.result_base_name = config.result
-        self.scale = config.scale
+        self.scale = config.time_scale
 
     def run(self, worker_id, params):
         (rewards, losses_dicts) = self.run_with_params(
