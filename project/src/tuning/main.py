@@ -25,10 +25,10 @@ def main():
 
     with Executor(config=config, domain=domain) as executor:
         if config.variant == "evolution":
-            evolution = EAsimple(executor, domain, params_eaSimple, result_tsv=config.result + ".csv")
+            evolution = EAsimple(executor, domain, params_eaSimple, result_dir=config.result_dir)
             evolution.run()
         else:
-            gridsearch = Gridsearch(executor, domain, result_tsv=config.result + ".csv")
+            gridsearch = Gridsearch(executor, domain,)
             gridsearch.run()
 
 if __name__ == "__main__":
