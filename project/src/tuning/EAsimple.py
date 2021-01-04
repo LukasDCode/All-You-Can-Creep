@@ -1,9 +1,10 @@
 import random
 import numpy as np
+from pathlib import Path
 
 class EAsimple():
 
-    def __init__(self, executor, domain, param_dictionary, result_tsv):
+    def __init__(self, executor, domain, param_dictionary, result_dir):
         """
 
         :param executor:
@@ -21,12 +22,13 @@ class EAsimple():
         self.current_population = []
         self.current_generation = 1
         self.rewards = np.zeros(self.generation_max)
-        self.result_tsv = result_tsv
+        self.result_tsv = Path(result_dir) / "evolution.tsv"
+        self.result_tsv.parent.mkdir(parents=True, exist_ok=True)
 
     def run(self):
         self.new_population()
         self.evaluate()
-        with open(self.result_tsv, 'w') as tsv:
+        with self.result_tsv.open('w+') as tsv:
             for i in range(self.generation_max):
                 self.mate()
                 self.mutate()
@@ -65,7 +67,7 @@ class EAsimple():
         return fitness_list
 
     def eval(self, individual):
-        return self.executor.submit_task(self.unwrap_params(individual))
+        return self.executor.submit_task(params=self.unwrap_params(individual))
 
     def mate(self):
         index_current_population_mate = []

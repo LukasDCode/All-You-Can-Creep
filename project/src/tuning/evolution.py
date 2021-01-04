@@ -23,11 +23,11 @@ def main():
   domain = WormDomainAdaptor(config)
 
   #with Executor(config=config, domain=domain) as executor:
-    #evolution = EAsimple(executor,domain, params_eaSimple, result_tsv=config.result+".csv")
+    #evolution = EAsimple(executor,domain, params_eaSimple, result_dir=config.result_dir)
     #evolution.run()
 
   with Executor(config=config, domain=domain) as executor:
-    gridsearch = Gridsearch(executor, domain, result_tsv=config.result + ".csv")
+    gridsearch = Gridsearch(executor, domain)
     gridsearch.run()
     
 if __name__ == "__main__":

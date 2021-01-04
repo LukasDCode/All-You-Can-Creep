@@ -1,15 +1,12 @@
 
 from os import close, stat
-import pdb
 from sys import platform
-import matplotlib.pyplot as plot
-import gym
-import argparse
 import json
 from uuid import uuid4
 from collections import defaultdict
 from pathlib import Path
 import itertools
+import torch
 
 from gym_unity.envs import UnityToGymWrapper
 from mlagents_envs.environment import UnityEnvironment
@@ -24,9 +21,10 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
     @staticmethod
     def add_parse_args(parser):
       parser.add_argument('-n','--episodes', type=int, default=2000, help='training episodes')
+      parser.add_argument('-s','--save_interval', type=int, default=10, help='every x the agent state is safed to disk')
       parser.add_argument('-v', '--visualize', type=bool, default=False, help='call env.render')  
       parser.add_argument('-t', '--time_scale', type=float, default=20, help='simulation speed scaling, higher values make physics less precise')
-      parser.add_argument('-r', '--result', type=str, default="result", help='file base name to save results into')
+      parser.add_argument('-r', '--result_dir', type=str, default="result", help='result directory')
       return parser
 
 
@@ -34,21 +32,25 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
         super().__init__()
         self.render_env = config.visualize
         self.training_episodes = config.episodes
-        self.result_base_name = config.result
-        self.scale = config.time_scale
+        self.result_dir = Path(config.result_dir)
+        self.result_dir.mkdir(parents=True, exist_ok=True)
+        self.time_scale = config.time_scale
+        self.save_interval = config.save_interval
 
-    def run(self, worker_id, params):
+
+    def run(self, worker_id, run_id, params, agent_state_dict=None, **kwds):
         (rewards, losses_dicts) = self.run_with_params(
+            run_id=run_id,
             worker_id=worker_id,
             params=params,
+            agent_state_dict=agent_state_dict,
         )
         result_dump = {
             "algorithm": "a2c",
             "params": params,
             "measures": {"rewards": rewards, **losses_dicts}
         }
-        result_path = Path(self.result_base_name + str(uuid4()) + ".json")
-        result_path.parent.mkdir(parents=True, exist_ok=True)
+        result_path = self.result_dir / (run_id + ".results.json")
         with result_path.open('w+') as file:
             json.dump(result_dump, file, indent=2)
         return rewards
@@ -82,13 +84,12 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
         print(nr_episode, ":", undiscounted_return)
         return undiscounted_return, losses_dict
 
-    def run_with_params(self, worker_id, params,):
-        params = params.copy()
+    def run_with_params(self, worker_id, run_id, params, agent_state_dict,):
 
         # Domain setup
         # Environment
         channel = EngineConfigurationChannel()
-        channel.set_configuration_parameters(time_scale=self.scale)
+        channel.set_configuration_parameters(time_scale=self.time_scale)
 
         unity_env = UnityEnvironment(
             file_name="Unity/worm_single_environment.x86_64" if "linux" in platform else "Unity",
@@ -99,19 +100,31 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
         )
 
         env = UnityToGymWrapper(unity_env)
-        params["nr_input_features"] = env.observation_space.shape[0]  # 64
-        params["env"] = env
-        params["nr_actions"] = env.action_space.shape[0]  # 9
-        params["lower_bound"] = env.action_space.low
-        params["upper_bound"] = env.action_space.high
-        params["type"] = env.action_space.dtype
+        params = {
+            **params,
+            "nr_input_features": env.observation_space.shape[0],  # 64 
+            "env": env,
+            "nr_actions": env.action_space.shape[0],
+            "lower_bound": env.action_space.low,
+            "upper_bound": env.action_space.high,
+            "type": env.action_space.dtype,
+        }
 
         # Agent setup
         agent = A2CLearner(params)
+        if(agent_state_dict):
+            print("Loading old state dict")
+            agent.load_state_dict(torch.load(agent_state_dict))
+
         # train
-        results = [
-            self.episode(env, agent, nr_episode=i,)
-            for i in range(self.training_episodes)]
+        results = []
+        for i in range(self.training_episodes):
+             results.append(self.episode(env, agent, nr_episode=i))
+             if (i+1)% self.save_interval == 0:
+                print("Saving agent state...")
+                save_path = self.result_dir / "{}_episode_{:02d}.state_dict".format(run_id, i)
+                torch.save(agent.state_dict(), save_path)
+                print("Saved agent state.")
 
         # not needed anymore
         unity_env.close()
