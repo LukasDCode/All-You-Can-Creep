@@ -6,5 +6,4 @@ project/Unity/**
 .vscode
 Unity/
 project/test_results*
-
-
+*.out
