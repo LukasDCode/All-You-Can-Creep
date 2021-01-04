@@ -47,7 +47,7 @@ class A2CLearner(Agent):
         self.entropy = params["entropy"]
         self.nr_input_features = params["nr_input_features"]
         self.transitions = []
-        self.device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+        self.device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda:0")
         self.a2c_net = A2CNet(self.nr_input_features, self.nr_actions).to(self.device)
         self.optimizer = torch.optim.Adam(self.a2c_net.parameters(), lr=params["alpha"])
 
