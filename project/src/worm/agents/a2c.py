@@ -179,7 +179,8 @@ class A2CLearner(Agent):
                 final_loss_scale = torch.stack(policy_losses_scale).sum() 
                 final_entropy_loss = torch.stack(value_losses).sum()
                 final_loss = final_loss_loc + final_loss_scale + final_entropy_loss
-                [distances.append(states.numpy()[i][self.distance_index_of_observation]) for i in range(len(states.numpy()))]
+                np_states = states.detach().cpu().numpy() # copy and detach from gradient graph, move to cpu if not, and convert to numpy
+                [distances.append(np_states[i][self.distance_index_of_observation]) for i in range(len(np_states))]
                 avg_distance = 0 if len(distances) == 0 else sum(distances)/len(distances)
                 measures = {
                     "loss": final_loss.detach().cpu().item(),
