@@ -35,11 +35,11 @@ class Executor:
     """Asynchronoulsy executes domain.run with the given **kwargs, may block if poolsize is maxed out.
     @Returns a future
     """
-    def submit_task(self, **kwargs):
+    def submit_task(self, run_id=str(uuid4()), **kwargs):
         worker_id = self.tokens.get(block=True)
         return self.pool.apply_async(
             self.domain.run,
-            kwds={**kwargs, "worker_id": worker_id, "run_id": str(uuid4()), },
+            kwds={**kwargs, "worker_id": worker_id, },
             callback= lambda x: self.tokens.put(worker_id) ,
             error_callback=lambda x: self.tokens.put(worker_id),
         )
