@@ -85,30 +85,6 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
             undiscounted_return += reward
             time_step += 1
 
-            # for this to work you have to replace the "_" with "decision_steps" at env.step(action)
-            # decision_step_distance = decision_steps['step'].obs[0][0][4]
-            # self.distances.append(decision_step_distance)
-
-
-
-        """
-        # for this to work, you have to pass on the unity_env as a parameter
-        group_name = list(unity_env.behavior_specs.keys())[0]  # Get the first group_name
-        # group_spec = unity_env.behavior_specs[group_name]
-
-        # We send data to Unity : A string with the number of Agent at each
-        _, terminal_steps = unity_env.get_steps(group_name) # _ = decision_steps # not used here
-
-        terminal_step = terminal_steps[0].obs
-        terminal_step_distance = terminal_step[0][4]
-        self.distances.append(terminal_step_distance)
-
-        min_distance = min(self.distances)
-        max_distance = max(self.distances)
-        avg_distance = 0 if len(self.distances) == 0 else sum(self.distances)/len(self.distances)
-        last_distance = terminal_step_distance
-        """
-
 
         print(nr_episode, ":", undiscounted_return)
         return undiscounted_return, losses_dict
