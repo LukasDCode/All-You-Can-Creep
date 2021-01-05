@@ -212,35 +212,34 @@ class A2CLearner(Agent):
                 return final_loss, measures
 
             def _loss_other():
-                policy_losses_loc, policy_losses_scale, value_losses, distances = [], [], [], []
+                policy_losses, entropy_losses, value_losses, distances = [], [], [], [],
                 for action_loc, action_scale, action, value, R in zip(action_locs, action_scales, actions, state_values, normalized_returns):
                     ENTROPY_BETA = 1000 # vielleicht als Hyperparameter
                     advantage = R - value.item()
                     loss_value = F.mse_loss(value.squeeze(-1), R)
-                    def calc_logprob(): # log normal distribution
-                        p1 = - ((action_loc - action) ** 2) / (2*action_scale.clamp(min=1e-3))
-                        p2 = - torch.log(torch.sqrt(2 * math.pi * action_scale))
-                        return p1 + p2
-                    log_prob = advantage * calc_logprob()
-                    loss_policy = -log_prob.mean() # mean of MSE
+
+                    loc_loss = - ((action_loc - action) ** 2) / (2*action_scale.clamp(min=1e-3)) * advantage
+                    scale_loss = - torch.log(torch.sqrt(2 * math.pi * action_scale)) * advantage
+                    loss_policy = - (loc_loss + scale_loss).mean()
+
                     entropy_loss = ENTROPY_BETA * (-(torch.log(2*math.pi*action_scale) + 1)/2).mean() # soft actor critic ? where does it come from
     
-                    policy_losses_loc.append(loss_policy)
-                    policy_losses_scale.append(entropy_loss)
+                    policy_losses.append(loss_policy)
+                    entropy_losses.append(entropy_loss)
                     value_losses.append(loss_value)
 
-                final_loss_loc = torch.stack(policy_losses_loc).sum() 
-                final_loss_scale = torch.stack(policy_losses_scale).sum() 
-                final_entropy_loss = torch.stack(value_losses).sum()
-                final_loss = final_loss_loc + final_loss_scale + final_entropy_loss
+                final_loss_policy = torch.stack(policy_losses).sum() 
+                final_loss_entropy = torch.stack(entropy_losses).sum() 
+                final_loss_value = torch.stack(value_losses).sum()
+                final_loss = final_loss_policy + final_loss_entropy + final_loss_value
                 np_states = states.detach().cpu().numpy() # copy and detach from gradient graph, move to cpu if not, and convert to numpy
                 [distances.append(np_states[i][self.distance_index_of_observation]) for i in range(len(np_states))]
                 avg_distance = 0 if len(distances) == 0 else sum(distances)/len(distances)
                 measures = {
                     "loss": final_loss.detach().cpu().item(),
-                    "loss_loc": final_loss_loc.detach().cpu().item(),
-                    "loss_scale": final_loss_scale.detach().cpu().item(),
-                    "loss_entropy" : final_entropy_loss.detach().cpu().item(),
+                    "loss_policy": final_loss_policy.detach().cpu().item(),
+                    "loss_entropy": final_loss_entropy.detach().cpu().item(),
+                    "loss_value" : final_loss_value.detach().cpu().item(),
                     "action_scale":  float(action_scales.detach().cpu().mean().numpy().mean()),
                     "min_distance": float(min(distances)),
                     "max_distance": float(max(distances)),
