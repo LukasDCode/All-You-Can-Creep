@@ -79,7 +79,7 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
             # 2. Execute selected action
             next_state, reward, done, _ = env.step(action) # _ = decision_steps but are not used here
             # 3. Integrate new experience into agent
-            losses_dict = agent.update(state, action, reward, next_state, done)
+            losses_dict = agent.update(nr_episode, state, action, reward, next_state, done)
             state = next_state
             undiscounted_return += reward
             time_step += 1

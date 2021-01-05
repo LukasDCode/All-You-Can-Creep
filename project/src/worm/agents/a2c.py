@@ -104,7 +104,7 @@ class A2CLearner(Agent):
     """
      Performs a learning update of the currently learned policy and value function.
     """
-    def update(self, state, action, reward, next_state, done):
+    def update(self, nr_episode, state, action, reward, next_state, done):
         self.transitions.append((state, action, reward, next_state, done))
         # 64 Werte fuer state, 9 Werte fuer action, 1 Wert fuer reward, 64 Werte fuer next_state, 1 boolean fuer done
 
@@ -198,10 +198,12 @@ class A2CLearner(Agent):
             
             loss, measures = _loss_other()
 
-            # Optimize joint loss
-            self.optimizer.zero_grad()
+            # Optimize joint batch loss
+            if nr_episode % 10: # reset grad at 0, 10, 20...
+                self.optimizer.zero_grad()
             loss.backward()
-            self.optimizer.step()
+            if (nr_episode + 1) % 10: # step grad at 9,19,29... 
+                self.optimizer.step()
             
             # Don't forget to delete all experiences afterwards! This is an on-policy algorithm.
             self.transitions.clear()
