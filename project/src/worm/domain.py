@@ -39,12 +39,13 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
         # self.distances = []
 
 
-    def run(self, worker_id, run_id, params, agent_state_dict=None, **kwds):
+    def run(self, worker_id, run_id, params, state_dict=None, continue_training=False, **kwds):
         (rewards, measurements_dicts) = self.run_with_params(
             run_id=run_id,
             worker_id=worker_id,
             params=params,
-            agent_state_dict=agent_state_dict,
+            state_dict=state_dict,
+            continue_training= continue_training,
         )
         result_dump = {
             "algorithm": "a2c",
@@ -111,13 +112,11 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
         print(nr_episode, ":", undiscounted_return)
         return undiscounted_return, losses_dict
 
-    def run_with_params(self, worker_id, run_id, params, agent_state_dict,):
-
-        # Domain setup
-        # Environment
+    def run_with_params(self, worker_id, run_id, params, state_dict, continue_training):
+        
+        """ Environment Setup"""
         channel = EngineConfigurationChannel()
         channel.set_configuration_parameters(time_scale=self.time_scale)
-
         unity_env = UnityEnvironment(
             file_name="Unity/worm_single_environment.x86_64" if "linux" in platform else "Unity",
             # file_name="Unity/simple_ball_environment.x86_64" if "linux" in platform else "Unity",
@@ -126,8 +125,19 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
             side_channels=[channel],
         )
         unity_env.reset()
-
         env = UnityToGymWrapper(unity_env)
+
+        """ Loading old state dict """
+        if state_dict:
+            state_dict = torch.load(state_dict)
+
+        if continue_training:
+            print("Overriding given parameters with stored params in state_dict...")
+            params = {**params, **state_dict["trainer"]["params"]}
+            print("New params: ", params)
+
+        # we only want to store configurable hyper params
+        params_to_save = params.keys()
         params = {
             **params,
             "nr_input_features": env.observation_space.shape[0],  # 64
@@ -140,18 +150,33 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
 
         # Agent setup
         agent = A2CLearner(params)
-        if(agent_state_dict):
-            print("Loading old state dict")
-            agent.load_state_dict(torch.load(agent_state_dict))
+        if state_dict:
+            print("Loading state dict...")
+            agent.load_state_dict(state_dict["agent"])
+            print("Loaded state dict.")
+
+        results = []
+        start_episode = 0
+        if continue_training:
+            print("Loading old training state...")
+            results = state_dict["trainer"]["results"]
+            start_episode = int(state_dict["trainer"]["cur_episode"]) + 1 # because this episode was finished alread
+            print("Loaded old training state.")
 
         # train
-        results = []
-        for i in range(self.training_episodes):
+        for i in range(start_episode, self.training_episodes):
              results.append(self.episode(env, agent, nr_episode=i))
              if (i+1)% self.save_interval == 0:
                 print("Saving agent state...")
                 save_path = self.result_dir / "{}_episode_{:02d}.state_dict".format(run_id, i)
-                torch.save(agent.state_dict(), save_path)
+                torch.save({
+                    "agent": agent.state_dict(),
+                    "trainer":{
+                        "results": results,
+                        "cur_episode": i,
+                        "params": {key: params[key] for key in params_to_save}
+                    }
+                }, save_path)
                 print("Saved agent state.")
 
         # not needed anymore
