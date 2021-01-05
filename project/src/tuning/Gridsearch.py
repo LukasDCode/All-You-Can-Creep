@@ -9,7 +9,7 @@ class Gridsearch():
         hyperparams = {
                 "alpha":[0.001],
                 "gamma":[0.999, 0.9999, 0.99999,1.],
-                "entropy":[1e-7, 1e-6, 1e-5, 1e-4]
+                "entropy":[1000, 500, 250, 125, 75]
             }
 
         for i in hyperparams["alpha"]:
