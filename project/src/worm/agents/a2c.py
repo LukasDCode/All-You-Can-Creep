@@ -21,7 +21,7 @@ class A2CNet(nn.Module):
         self.action_head_loc = nn.Sequential( # Actor LOC-Ausgabe von Policy
             nn.Linear(nr_hidden_units, nr_actions),
             nn.Tanh(),
-        ) 
+        )
         self.action_head_scale = nn.Sequential( # Actor SCALE-Ausgabe von Policy
             nn.Linear(nr_hidden_units, nr_actions),
             nn.Softplus(),
@@ -50,6 +50,60 @@ class A2CNet(nn.Module):
         self.action_head_scale.load_state_dict(state_dict["action_head_scale"],)
         self.value_head.load_state_dict(state_dict["value_head"], strict=strict, )
         return self
+
+
+class A2CNetSplit(nn.Module):
+    def __init__(self, nr_input_features, nr_actions):
+        super(A2CNet, self).__init__()
+        nr_hidden_units = 64
+        self.policy_base_net = nn.Sequential(
+            nn.Linear(nr_input_features, nr_hidden_units),
+            nn.ReLU(),
+            nn.Linear(nr_hidden_units, nr_hidden_units),
+            nn.ReLU()
+        )
+        self.action_head_loc = nn.Sequential( # Actor LOC-Ausgabe von Policy
+            nn.Linear(nr_hidden_units, nr_actions),
+            nn.Tanh(),
+        )
+        self.action_head_scale = nn.Sequential( # Actor SCALE-Ausgabe von Policy
+            nn.Linear(nr_hidden_units, nr_actions),
+            nn.Softplus(),
+        ) # Actor = Policy-Function NN
+
+        self.value_head = nn.Sequential( #Critic = Value-Function
+            nn.Linear(nr_input_features, nr_hidden_units),
+            nn.ReLU(),
+            nn.Linear(nr_hidden_units, nr_hidden_units),
+            nn.ReLU(),
+            nn.Linear(nr_hidden_units,1),
+        )
+
+    def forward(self, state):
+        x = self.policy_base_net(state)
+        # x = x.view(x.size(0), -1) # reshapes the tensor
+        return (self.action_head_loc(x), self.action_head_scale(x)) ,  self.value_head(state)
+
+    # save with  torch.save(model.state_dict(), path)
+    def state_dict(self):
+        state_dict = {
+            "policy_base_net": self.policy_base_net.state_dict(),
+            "action_head_loc": self.action_head_loc.state_dict(),
+            "action_head_scale": self.action_head_scale.state_dict(),
+            "value_head": self.value_head.state_dict(),
+        }
+        return state_dict
+
+    # load with model.load_state_dict(torch.load(path))
+    def load_state_dict(self, state_dict, strict=False):
+        self.policy_base_net.load_state_dict(state_dict["policy_base_net"], strict=strict,)
+        self.action_head_loc.load_state_dict(state_dict["action_head_loc"], strict=strict,)
+        self.action_head_scale.load_state_dict(state_dict["action_head_scale"], strict=strict)
+        self.value_head.load_state_dict(state_dict["value_head"], strict=strict, )
+        return self
+
+
+
 
 """
  Autonomous agent using Synchronous Actor-Critic.
