@@ -16,5 +16,8 @@ class Agent:
      Learning method of the agent. Integrates experience into
      the agent's current knowledge.
     """
-    def update(self,nr_episode, state, action, reward, next_state):
-        pass
+    def update(self,nr_episode, state, action, reward, next_state, done):
+        return {}
+
+    def state_dict(self):
+        return {}

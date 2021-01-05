@@ -13,6 +13,7 @@ from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 
 from .agents.a2c import A2CLearner
+from .agents.randomagent import RandomAgent
 from ..exec.executor import Domain as DomainTrainingAdaptor, Executor 
 
 
@@ -142,14 +143,14 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
             **params,
             "nr_input_features": env.observation_space.shape[0],  # 64
             "env": env,
-            "nr_actions": env.action_space.shape[0],
+            "nr_actions": 9, #env.action_space.shape[0],
             "lower_bound": env.action_space.low,
             "upper_bound": env.action_space.high,
             "type": env.action_space.dtype,
         }
 
         # Agent setup
-        agent = A2CLearner(params)
+        agent = RandomAgent(params)
         if state_dict:
             print("Loading state dict...")
             agent.load_state_dict(state_dict["agent"])
