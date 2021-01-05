@@ -39,7 +39,7 @@ class Executor:
         worker_id = self.tokens.get(block=True)
         return self.pool.apply_async(
             self.domain.run,
-            kwds={**kwargs, "worker_id": worker_id, },
+            kwds={**kwargs, "worker_id": worker_id, "run_id": run_id, },
             callback= lambda x: self.tokens.put(worker_id) ,
             error_callback=lambda x: self.tokens.put(worker_id),
         )
