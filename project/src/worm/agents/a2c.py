@@ -160,7 +160,7 @@ class A2CLearner(Agent):
             def _loss_other():
                 policy_losses_loc, policy_losses_scale, value_losses, distances = [], [], [], []
                 for action_loc, action_scale, action, value, R in zip(action_locs, action_scales, actions, state_values, normalized_returns):
-                    ENTROPY_BETA = 1e-4 # vielleicht als Hyperparameter
+                    ENTROPY_BETA = 1000 # vielleicht als Hyperparameter
                     advantage = R - value.item()
                     loss_value = F.mse_loss(value.squeeze(-1), R)
                     def calc_logprob(): # log normal distribution
