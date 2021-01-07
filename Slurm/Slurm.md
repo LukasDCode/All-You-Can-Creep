@@ -1,0 +1,1 @@
+squeue -u $USER | grep $JOB_ID | awk '{print $1}' | xargs -n 1 scancel
