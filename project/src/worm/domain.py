@@ -126,8 +126,8 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
         }
 
         # Agent setup
-        agent = RandomAgent(params)
-        # agent = A2CLearner(params)
+        #agent = RandomAgent(params)
+        agent = A2CLearner(params)
         if state_dict:
             print("Loading state dict...")
             agent.load_state_dict(state_dict["agent"])
