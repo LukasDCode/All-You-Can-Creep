@@ -232,6 +232,12 @@ class A2CLearner(Agent):
                 final_loss_entropy = torch.stack(entropy_losses).sum() 
                 final_loss_value = torch.stack(value_losses).sum()
                 final_loss = final_loss_policy + final_loss_entropy + final_loss_value
+                
+                # calculate the variance of action_scale
+                action_scales_numpy = action_scales.detach().cpu().numpy()
+                mean_of_variance = [action_scales_numpy[i].mean() for i in range(len(action_scales_numpy))]
+                variance_of_variance = numpy.var(mean_of_variance)
+
                 np_states = states.detach().cpu().numpy() # copy and detach from gradient graph, move to cpu if not, and convert to numpy
                 [distances.append(np_states[i][self.distance_index_of_observation]) for i in range(len(np_states))]
                 avg_distance = 0 if len(distances) == 0 else sum(distances)/len(distances)
@@ -241,6 +247,7 @@ class A2CLearner(Agent):
                     "loss_entropy": final_loss_entropy.detach().cpu().item(),
                     "loss_value" : final_loss_value.detach().cpu().item(),
                     "action_scale":  float(action_scales.detach().cpu().mean().numpy().mean()),
+                    "action_scale_variance": variance_of_variance,
                     "min_distance": float(min(distances)),
                     "max_distance": float(max(distances)),
                     "avg_distance": float(avg_distance),
