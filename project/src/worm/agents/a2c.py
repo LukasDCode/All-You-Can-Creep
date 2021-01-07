@@ -122,7 +122,7 @@ class A2CLearner(Agent):
         self.gamma = params["gamma"]
         self.nr_actions = params["nr_actions"]
         self.alpha = params["alpha"]
-        self.entropy = params["entropy"]
+        self.entropy_beta = params["entropy"]
         self.nr_input_features = params["nr_input_features"]
         self.transitions = []
         self.device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda:0")
@@ -187,15 +187,17 @@ class A2CLearner(Agent):
             def _loss_other():
                 policy_losses, entropy_losses, value_losses, distances = [], [], [], [],
                 for action_loc, action_scale, action, value, R in zip(action_locs, action_scales, actions, state_values, normalized_returns):
-                    ENTROPY_BETA = 1000 # vielleicht als Hyperparameter
                     advantage = R - value.item()
                     loss_value = F.mse_loss(value.squeeze(-1), R)
 
-                    loc_loss = - ((action_loc - action) ** 2) / (2*action_scale.clamp(min=1e-3)) * advantage
-                    scale_loss = - torch.log(torch.sqrt(2 * math.pi * action_scale)) * advantage
-                    loss_policy = - (loc_loss + scale_loss).mean()
+                    # log gauss distribution
+                    p1 = - ((action_loc - action) ** 2) / (2*action_scale.clamp(min=1e-3))
+                    p2 = - torch.log(torch.sqrt(2 * math.pi * action_scale))
+                    loss_policy = - ((p1 + p2) * advantage).mean()
+                    # the entropy loss tries to weaken the gradient of the action scale, to allow proper exploration
+                    entropy_loss = self.entropy_beta * (-(torch.log(2*math.pi*action_scale) + 1)/2).mean() # soft actor critic ? where does it come from
+                    #entropy_falloff = ?
 
-                    entropy_loss = ENTROPY_BETA * (-(torch.log(2*math.pi*action_scale) + 1)/2).mean() # soft actor critic ? where does it come from
     
                     policy_losses.append(loss_policy)
                     entropy_losses.append(entropy_loss)
