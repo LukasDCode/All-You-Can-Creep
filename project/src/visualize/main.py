@@ -32,6 +32,8 @@ def visualize_single(config, ):
             result["algorithm"], str(result["params"])
         ))
         data = result["measures"][data_key]
+        #only plot every nth element
+        data = data[::config.nth_element]
         subfig.plot(range(len(data)), data)
     
     if config.file:
@@ -62,6 +64,8 @@ def visualize_all(config):
     for column, data_set in enumerate(result_sets):
         for measure_name, measure_data in data_set["measures"].items():
             row = measures.index(measure_name)
+            #only plot every nth element
+            measure_data = measure_data[::config.nth_element]
             subfig = axs[row, column]
             subfig.set_title("{} {}".format(str(data_set["algorithm"]),str(data_set["params"])) )
             subfig.set(ylabel=measure_name, xlabel="episodes")
@@ -79,6 +83,7 @@ def parse_config():
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', '--name',type=str,required=True,help="heading of the image")
     parser.add_argument('-f', '--file', type=str,default=None, help="file to write the image to, optional")
+    parser.add_argument('-nth', '--nth_element', type=int, default=1, help="only print every nth data point")
     subparser = parser.add_subparsers(title="analyzers",required=True)
 
     # parser for deep reward analysis
