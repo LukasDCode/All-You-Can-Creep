@@ -12,8 +12,8 @@ from gym_unity.envs import UnityToGymWrapper
 from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 
-from .agents.a2c import A2CLearner
-from .agents.randomagent import RandomAgent
+from ..agents.a2c import A2CLearner
+from ..agents.randomagent import RandomAgent
 from ..exec.executor import Domain as DomainTrainingAdaptor, Executor 
 
 
