@@ -183,33 +183,6 @@ class A2CLearner(Agent):
             states = torch.tensor(states, device=self.device, dtype=torch.float)
 
 
-            def _loss_basic():
-                loc_losses, scale_losses, value_losses = [], [], []
-                for action_loc, action_scale, action, value, R in zip(action_locs, action_scales, actions, state_values, normalized_returns):
-                    advantage = R - value.item() #a2c
-                    # advantage = reward + ( next_value.item() - value.item()) # temporal difference learning
-                    # advantage = R # reenforcement learning
-
-                    entropy = self.entropy #factor for gradient of scale
-
-                    loc_loss = F.mse_loss(input=action_loc, target=action) * advantage
-                    scale_loss = entropy * (action_scale).mean() * advantage
-                    value_loss = F.smooth_l1_loss(value, torch.tensor([R]))
-
-                    loc_losses.append(loc_loss)
-                    scale_losses.append(scale_loss)
-                    value_losses.append(value_loss)
-
-                final_loc_loss = torch.stack(loc_losses).sum() 
-                final_scale_loss = torch.stack(scale_losses).sum() 
-                final_value_loss =torch.stack(value_losses).sum()
-                final_loss =  final_loc_loss + final_scale_loss + final_value_loss
-
-                measures =  {
-                    "loss":final_loss, 
-                    "loc_loss": final_loc_loss,
-                }
-                return final_loss, measures
 
             def _loss_other():
                 policy_losses, entropy_losses, value_losses, distances = [], [], [], [],
