@@ -123,6 +123,7 @@ class A2CLearner(Agent):
         self.nr_actions = params["nr_actions"]
         self.alpha = params["alpha"]
         self.entropy_beta = params["entropy"]
+        self.entropy_fall = params["entropy_fall"]
         self.nr_input_features = params["nr_input_features"]
         self.transitions = []
         self.device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda:0")
@@ -192,7 +193,7 @@ class A2CLearner(Agent):
                 zipped_data = zip(action_locs, action_scales, actions, state_values, next_state_values, normalized_returns, rewards)
                 for index ,(action_loc, action_scale, action, value, next_value, R, reward) in enumerate(zipped_data):
                     def nstep(n=3):
-                        n = min(n, len(rewards)- index -1 )
+                        n = min(n, len(rewards) - index -1 )
                         advantage_0 = sum([self.gamma**k *rewards[index + k] for k in range(n-1)])
                         advantage_1 = self.gamma ** next_state_values[index + n]
                         # Thomy fragen ob bei advantage_0 und _1 mit +1 oder ohne +1
@@ -213,7 +214,8 @@ class A2CLearner(Agent):
                     p2 = - torch.log(torch.sqrt(2 * math.pi * action_scale))
                     loss_policy = - ((p1 + p2) * advantage).mean()
                     # the entropy loss tries to weaken the gradient of the action scale, to allow proper exploration
-                    entropy_loss = self.entropy_beta * (-(torch.log(2*math.pi*action_scale) + 1)/2).mean()*advantage # soft actor critic ? where does it come from
+
+                    entropy_loss = (self.entropy_beta*self.entropy_fall) * (-(torch.log(2*math.pi*action_scale) + 1)/2).mean()*advantage # soft actor critic ? where does it come from
                     #entropy_falloff = ?
 
 

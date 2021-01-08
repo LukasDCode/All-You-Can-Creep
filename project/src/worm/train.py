@@ -9,6 +9,7 @@ def create_parser():
   parser.add_argument('-a','--alpha', type=float, default=0.001, help='the learning rate')
   parser.add_argument('-g','--gamma', type=float, default=0.999 , help='the discount factor for rewards')
   parser.add_argument('-e', '--entropy', type=float, default=1e-4, help='the exploitation rate')
+  parser.add_argument('-ef', '--entropy_fall', type=float, default=0.999, help='the entropy decay')
   parser.add_argument("-sd", '--state_dict', type=str, default=None, help='the existing state dict to load')
   parser.add_argument("-c","--continue_training", default=False, action='store_true', help='whether to continue training from state dict')
 
@@ -32,6 +33,7 @@ def main():
     params["gamma"] = config.gamma
     params["alpha"] = config.alpha
     params["entropy"] = config.entropy
+    params["entropy_fall"] = config.entropy_fall
     future = executor.submit_task(
       params=params,
       state_dict=config.state_dict,
