@@ -62,7 +62,8 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
         return [
             ("alpha", 0.001, 0.001),
             ("gamma", 0.99, 1.),
-            ("entropy", 1e-323, 1e-4)
+            ("entropy", 1e-323, 1e-4),
+            ("entropy_fall", 0.999, 0.8)
         ]
 
     def episode(self, env, agent, nr_episode=0):
