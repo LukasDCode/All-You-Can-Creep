@@ -9,6 +9,7 @@ dependencies:
   - numpy
   - pytorch 
   - mlflow
+  - pysftp
   - pip
   - pip:
     - mlagents
