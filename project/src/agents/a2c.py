@@ -126,7 +126,10 @@ class A2CLearner(Agent):
         self.nr_input_features = params["nr_input_features"]
         self.transitions = []
         self.device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda:0")
+
         self.a2c_net = A2CNet(self.nr_input_features, self.nr_actions).to(self.device)
+        #self.a2c_net = A2CNetSplit(self.nr_input_features, self.nr_actions).to(self.device)
+
         self.optimizer = torch.optim.Adam(self.a2c_net.parameters(), lr=params["alpha"])
         self.distance_index_of_observation = 4
 
@@ -180,25 +183,40 @@ class A2CLearner(Agent):
             # Calculate losses of policy and value function
             actions = torch.tensor(actions, device=self.device, dtype=torch.float)
             (action_locs, action_scales), state_values = self.predict_policy(states) # Tupel + value_head --- return aus Zeile 29: tupel((action_probs_loc, action_probs_scale), state_values)
+            _, next_state_values = self.predict_policy(next_states)
             states = torch.tensor(states, device=self.device, dtype=torch.float)
-
 
 
             def _loss_other():
                 policy_losses, entropy_losses, value_losses, distances = [], [], [], [],
-                for action_loc, action_scale, action, value, R in zip(action_locs, action_scales, actions, state_values, normalized_returns):
-                    advantage = R - value.item()
+                zipped_data = zip(action_locs, action_scales, actions, state_values, next_state_values, normalized_returns, rewards)
+                for index ,(action_loc, action_scale, action, value, next_value, R, reward) in enumerate(zipped_data):
+                    def nstep(n=3):
+                        n = min(n, len(rewards)- index -1 )
+                        advantage_0 = sum([self.gamma**k *rewards[index + k] for k in range(n-1)])
+                        advantage_1 = self.gamma ** next_state_values[index + n]
+                        # Thomy fragen ob bei advantage_0 und _1 mit +1 oder ohne +1
+                        advantage_2 = - value.item()
+                        return advantage_0 + advantage_1 + advantage_2
+
+                    #advantage = R #reinforce
+                    #advantage = R - value.item()
+                    #advantage = reward + self.gamma * next_value.item() - value.item() # temporal difference
+                    advantage = nstep() # nstep td
+
                     loss_value = F.mse_loss(value.squeeze(-1), R)
 
                     # log gauss distribution
-                    p1 = - ((action_loc - action) ** 2) / (2*action_scale.clamp(min=1e-3))
+                    p1_0 = - ((action_loc - action) ** 2)
+                    p1_1 = (2*action_scale.clamp(min=1e-3))
+                    p1 = p1_0 / p1_1
                     p2 = - torch.log(torch.sqrt(2 * math.pi * action_scale))
                     loss_policy = - ((p1 + p2) * advantage).mean()
                     # the entropy loss tries to weaken the gradient of the action scale, to allow proper exploration
                     entropy_loss = self.entropy_beta * (-(torch.log(2*math.pi*action_scale) + 1)/2).mean()*advantage # soft actor critic ? where does it come from
                     #entropy_falloff = ?
 
-    
+
                     policy_losses.append(loss_policy)
                     entropy_losses.append(entropy_loss)
                     value_losses.append(loss_value)
