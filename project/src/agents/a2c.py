@@ -195,7 +195,7 @@ class A2CLearner(Agent):
                     p2 = - torch.log(torch.sqrt(2 * math.pi * action_scale))
                     loss_policy = - ((p1 + p2) * advantage).mean()
                     # the entropy loss tries to weaken the gradient of the action scale, to allow proper exploration
-                    entropy_loss = self.entropy_beta * (-(torch.log(2*math.pi*action_scale) + 1)/2).mean() # soft actor critic ? where does it come from
+                    entropy_loss = self.entropy_beta * (-(torch.log(2*math.pi*action_scale) + 1)/2).mean()*advantage # soft actor critic ? where does it come from
                     #entropy_falloff = ?
 
     
