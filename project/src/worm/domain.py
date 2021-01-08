@@ -151,7 +151,7 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
         for i in range(start_episode, self.training_episodes):
              (reward, metrics) = self.episode(env, agent, nr_episode=i)
              results.append((reward,metrics))
-             mlflow.log_metrics(metrics={"reward": reward, **metrics})
+             mlflow.log_metrics(step=i, metrics={"reward": reward, **metrics})
              if (i+1)% self.save_interval == 0:
                 print("Saving agent state...")
                 save_path = self.result_dir / "{}_episode_{:02d}.state_dict".format(run_id, i)
