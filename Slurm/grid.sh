@@ -1,7 +1,7 @@
 #!/bin/bash
 alphas=(0.001)
-gammas=(0.999 0.9999 0.99999 1)
-entropy=(1e-7 1e-6 1e-5 1e-4)
+gammas=(0.999 0.9999 0.99999)
+entropy=(0.9 0.5 0.1 0.01 0.001)
 
 len_g="${#gammas[@]}"
 len_e="${#entropy[@]}"
