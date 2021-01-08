@@ -6,7 +6,7 @@ entropy=(1e-7 1e-6 1e-5 1e-4)
 len_g="${#gammas[@]}"
 len_e="${#entropy[@]}"
 
-index=0
+index=$1
 for a in "${!alphas[@]}"; do
   for g in "${!gammas[@]}"; do
     for e in "${!entropy[@]}"; do
