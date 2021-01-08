@@ -222,7 +222,7 @@ class A2CLearner(Agent):
                     "loss_entropy": final_loss_entropy.detach().cpu().item(),
                     "loss_value" : final_loss_value.detach().cpu().item(),
                     "action_scale":  float(action_scales.detach().cpu().mean().numpy().mean()),
-                    "action_scale_variance": variance_of_variance,
+                    "action_scale_variance": float(variance_of_variance),
                     "min_distance": float(min(distances)),
                     "max_distance": float(max(distances)),
                     "avg_distance": float(avg_distance),
