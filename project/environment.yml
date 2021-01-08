@@ -1,12 +1,14 @@
 name: autonome
 channels:
   - pytorch
+  - conda-forge
   - defaults
 dependencies:
   - matplotlib
   - seaborn
   - numpy
   - pytorch 
+  - mlflow
   - pip
   - pip:
     - mlagents
