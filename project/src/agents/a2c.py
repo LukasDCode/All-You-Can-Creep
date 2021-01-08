@@ -1,5 +1,6 @@
 import random
 import math
+import mlflow
 import numpy
 import torch
 import torch.nn as nn
@@ -11,6 +12,7 @@ from .agent import Agent
 class A2CNet(nn.Module):
     def __init__(self, nr_input_features, nr_actions):
         super(A2CNet, self).__init__()
+        mlflow.log_param("network", "multihead" )
         nr_hidden_units = 64
         self.fc_net = nn.Sequential(
             nn.Linear(nr_input_features, nr_hidden_units),
@@ -55,6 +57,7 @@ class A2CNet(nn.Module):
 class A2CNetSplit(nn.Module):
     def __init__(self, nr_input_features, nr_actions):
         super(A2CNet, self).__init__()
+        mlflow.log_param("network", "split" )
         nr_hidden_units = 64
         self.policy_base_net = nn.Sequential(
             nn.Linear(nr_input_features, nr_hidden_units),
@@ -127,12 +130,14 @@ class A2CLearner(Agent):
         self.nr_input_features = params["nr_input_features"]
         self.transitions = []
         self.device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda:0")
+        self.update_first = False
 
         self.a2c_net = A2CNet(self.nr_input_features, self.nr_actions).to(self.device)
         #self.a2c_net = A2CNetSplit(self.nr_input_features, self.nr_actions).to(self.device)
 
         self.optimizer = torch.optim.Adam(self.a2c_net.parameters(), lr=params["alpha"])
         self.distance_index_of_observation = 4
+        mlflow.log_param("agent", "a2c")
 
     """
      Samples a new action using the policy network.
@@ -192,19 +197,37 @@ class A2CLearner(Agent):
                 policy_losses, entropy_losses, value_losses, distances = [], [], [], [],
                 zipped_data = zip(action_locs, action_scales, actions, state_values, next_state_values, normalized_returns, rewards)
                 for index ,(action_loc, action_scale, action, value, next_value, R, reward) in enumerate(zipped_data):
+                    
+                    def reinforce():
+                        if not self.update_first:
+                            self.update_first = True
+                            mlflow.log_param("advantage","reinforce")
+                        return R
+                    
+                    def advantage_actor_critic():
+                        if not self.update_first:
+                            self.update_first = True
+                            mlflow.log_param("advantage","a2c")
+                        return R - value.item()
+
+                    def temporal_difference():
+                        if not self.update_first:
+                            self.update_first = True
+                            mlflow.log_param("advantage","temporal difference")
+                        return reward + self.gamma * next_value.item() - value.item() # temporal difference
+                     
                     def nstep(n=3):
+                        if not self.update_first:
+                            self.update_first = True
+                            mlflow.log_param("advantage", str(n) + "-step")
                         n = min(n, len(rewards) - index -1 )
                         advantage_0 = sum([self.gamma**k *rewards[index + k] for k in range(n-1)])
                         advantage_1 = self.gamma ** next_state_values[index + n]
                         # Thomy fragen ob bei advantage_0 und _1 mit +1 oder ohne +1
                         advantage_2 = - value.item()
-                        return advantage_0 + advantage_1 + advantage_2
+                        return advantage_0 + advantage_1 + advantage_2 
 
-                    #advantage = R #reinforce
-                    #advantage = R - value.item()
-                    #advantage = reward + self.gamma * next_value.item() - value.item() # temporal difference
                     advantage = nstep() # nstep td
-
                     loss_value = F.mse_loss(value.squeeze(-1), R)
 
                     # log gauss distribution
@@ -233,6 +256,9 @@ class A2CLearner(Agent):
                 mean_of_variance = [action_scales_numpy[i].mean() for i in range(len(action_scales_numpy))]
                 variance_of_variance = numpy.var(mean_of_variance)
 
+                flat_variance = numpy.var(action_scales.detach().cpu().numpy().flatten())
+                
+
                 np_states = states.detach().cpu().numpy() # copy and detach from gradient graph, move to cpu if not, and convert to numpy
                 [distances.append(np_states[i][self.distance_index_of_observation]) for i in range(len(np_states))]
                 avg_distance = 0 if len(distances) == 0 else sum(distances)/len(distances)
@@ -243,6 +269,7 @@ class A2CLearner(Agent):
                     "loss_value" : final_loss_value.detach().cpu().item(),
                     "action_scale":  float(action_scales.detach().cpu().mean().numpy().mean()),
                     "action_scale_variance": float(variance_of_variance),
+                    "action_scale_flat_variance": float(flat_variance),
                     "min_distance": float(min(distances)),
                     "max_distance": float(max(distances)),
                     "avg_distance": float(avg_distance),

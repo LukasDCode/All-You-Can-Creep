@@ -12,6 +12,8 @@ from gym_unity.envs import UnityToGymWrapper
 from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 
+import mlflow
+
 from ..agents.a2c import A2CLearner
 from ..agents.randomagent import RandomAgent
 from ..exec.executor import Domain as DomainTrainingAdaptor, Executor 
@@ -91,7 +93,8 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
         return undiscounted_return, losses_dict
 
     def run_with_params(self, worker_id, run_id, params, state_dict, continue_training):
-        
+      mlflow.set_experiment(experiment_name=str(self.result_dir))
+      with mlflow.start_run():
         """ Environment Setup"""
         channel = EngineConfigurationChannel()
         channel.set_configuration_parameters(time_scale=self.time_scale)
@@ -125,6 +128,8 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
             "upper_bound": env.action_space.high,
             "type": env.action_space.dtype,
         }
+        logged_params = {k:params[k] for k in params_to_save} 
+        mlflow.log_params(logged_params)
 
         # Agent setup
         #agent = RandomAgent(params)
@@ -144,7 +149,9 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
 
         # train
         for i in range(start_episode, self.training_episodes):
-             results.append(self.episode(env, agent, nr_episode=i))
+             (reward, metrics) = self.episode(env, agent, nr_episode=i)
+             results.append((reward,metrics))
+             mlflow.log_metrics(metrics={"reward": reward, **metrics})
              if (i+1)% self.save_interval == 0:
                 print("Saving agent state...")
                 save_path = self.result_dir / "{}_episode_{:02d}.state_dict".format(run_id, i)
@@ -156,13 +163,12 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
                         "params": {key: params[key] for key in params_to_save}
                     }
                 }, save_path)
+                #mlflow.log_artifact(local_path=str(save_path))
                 print("Saved agent state.")
 
         # not needed anymore
         unity_env.close()
-
         returns, measurements_dicts = zip(*results)
-
         def flatmap(func, *iterable):
             return itertools.chain.from_iterable(map(func, *iterable))
         squeezed_measurements_dicts = defaultdict(list)
