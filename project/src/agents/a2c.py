@@ -132,8 +132,8 @@ class A2CLearner(Agent):
         self.device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda:0")
         self.update_first = False
 
-        self.a2c_net = A2CNet(self.nr_input_features, self.nr_actions).to(self.device)
-        #self.a2c_net = A2CNetSplit(self.nr_input_features, self.nr_actions).to(self.device)
+        # self.a2c_net = A2CNet(self.nr_input_features, self.nr_actions).to(self.device)
+        self.a2c_net = A2CNetSplit(self.nr_input_features, self.nr_actions).to(self.device)
 
         self.optimizer = torch.optim.Adam(self.a2c_net.parameters(), lr=params["alpha"])
         self.distance_index_of_observation = 4
@@ -223,22 +223,32 @@ class A2CLearner(Agent):
                         n = min(n, len(rewards) - index -1 )
                         advantage_0 = sum([self.gamma**k *rewards[index + k] for k in range(n-1)])
                         advantage_1 = self.gamma ** next_state_values[index + n]
-                        # Thomy fragen ob bei advantage_0 und _1 mit +1 oder ohne +1
                         advantage_2 = - value.item()
                         return advantage_0 + advantage_1 + advantage_2 
 
-                    advantage = nstep() # nstep td
+                    # advantage = nstep() # nstep td
+                    advantage = advantage_actor_critic()
                     loss_value = F.mse_loss(value.squeeze(-1), R)
 
+                    normal = torch.distributions.normal.Normal(action_loc, action_scale) ## tensor draus bauen
+                    loss_policy = -normal.log_prob(action)* advantage
+
+                    # loss_policy = F.mse_loss(action_loc - action) * advantage
+
+                    entropy_loss = (self.entropy_beta*self.entropy_fall) * (-(torch.log(2*math.pi*action_scale) + 1)/2).mean()*advantage # soft actor critic ? where does it come from
+                    # entropy_loss = self.entropy_beta * (-(torch.log(2*math.pi*action_scale) + 1)/2).mean()*advantage # soft actor critic ? where does it come from
+                    # self.entropy_beta *=  self.entropy_fall
+
                     # log gauss distribution
+                    """
                     p1_0 = - ((action_loc - action) ** 2)
                     p1_1 = (2*action_scale.clamp(min=1e-3))
                     p1 = p1_0 / p1_1
                     p2 = - torch.log(torch.sqrt(2 * math.pi * action_scale))
                     loss_policy = - ((p1 + p2) * advantage).mean()
+                    """
                     # the entropy loss tries to weaken the gradient of the action scale, to allow proper exploration
 
-                    entropy_loss = (self.entropy_beta*self.entropy_fall) * (-(torch.log(2*math.pi*action_scale) + 1)/2).mean()*advantage # soft actor critic ? where does it come from
                     #entropy_falloff = ?
 
 
@@ -249,8 +259,16 @@ class A2CLearner(Agent):
                 final_loss_policy = torch.stack(policy_losses).sum() 
                 final_loss_entropy = torch.stack(entropy_losses).sum() 
                 final_loss_value = torch.stack(value_losses).sum()
+
+                """
+                if nr_episode > 1500:
+                    final_loss = final_loss_policy + final_loss_value
+                else:
+                    final_loss = final_loss_policy + final_loss_entropy + final_loss_value
+                """
+
                 final_loss = final_loss_policy + final_loss_entropy + final_loss_value
-                
+
                 # calculate the variance of action_scale
                 action_scales_numpy = action_scales.detach().cpu().numpy()
                 mean_of_variance = [action_scales_numpy[i].mean() for i in range(len(action_scales_numpy))]
