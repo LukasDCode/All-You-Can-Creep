@@ -8,5 +8,5 @@ class RandomAgent(Agent):
         super().__init__(params)
 
     def policy(self, state):
-        random_m = numpy.random.uniform(-1, 1, 9)
+        random_m = numpy.random.uniform(-1, 1, 9) 
         return random_m

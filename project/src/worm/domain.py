@@ -1,4 +1,3 @@
-
 from os import close, stat
 from sys import platform
 import json
@@ -99,8 +98,8 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
         channel = EngineConfigurationChannel()
         channel.set_configuration_parameters(time_scale=self.time_scale)
         unity_env = UnityEnvironment(
-            file_name="Unity/worm_single_environment.x86_64" if "linux" in platform else "Unity",
-            # file_name="Unity/simple_ball_environment.x86_64" if "linux" in platform else "Unity",
+            # file_name="Unity/worm_single_environment.x86_64" if "linux" in platform else "Unity",
+            file_name="Unity/simple_ball_environment.x86_64" if "linux" in platform else "Unity",
             worker_id=worker_id,
             no_graphics=not self.render_env,
             side_channels=[channel],
@@ -123,7 +122,7 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
             **params,
             "nr_input_features": env.observation_space.shape[0],  # 64
             "env": env,
-            "nr_actions": 9, #env.action_space.shape[0],
+            "nr_actions": env.action_space.shape[0], # 9
             "lower_bound": env.action_space.low,
             "upper_bound": env.action_space.high,
             "type": env.action_space.dtype,
@@ -132,7 +131,7 @@ class WormDomainAdaptor(DomainTrainingAdaptor):
         mlflow.log_params(logged_params)
 
         # Agent setup
-        #agent = RandomAgent(params)
+        # agent = RandomAgent(params)
         agent = A2CLearner(params)
         if state_dict:
             print("Loading state dict...")
