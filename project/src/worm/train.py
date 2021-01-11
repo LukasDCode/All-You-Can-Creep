@@ -1,20 +1,27 @@
 import argparse
-
-from .domain import WormDomainAdaptor
+from .domain import WormDomain
+from matplotlib.pyplot import title
 from ..exec.executor import Executor
-
+from ..agents.a2c import A2CLearner
+from ..agents.randomagent import RandomAgent
+from .training import AgentRunner
 
 def create_parser():
-  parser = argparse.ArgumentParser(description='Run worms with hyper params')
-  parser.add_argument('-a','--alpha', type=float, default=0.001, help='the learning rate')
-  parser.add_argument('-g','--gamma', type=float, default=0.999 , help='the discount factor for rewards')
-  parser.add_argument('-e', '--entropy', type=float, default=1e-4, help='the exploitation rate')
-  parser.add_argument('-ef', '--entropy_fall', type=float, default=0.999, help='the entropy decay')
-  parser.add_argument("-sd", '--state_dict', type=str, default=None, help='the existing state dict to load')
-  parser.add_argument("-c","--continue_training", default=False, action='store_true', help='whether to continue training from state dict')
+  parser = argparse.ArgumentParser(description='Train agent')
+  # add agents subcommands
+  subparser = parser.add_subparsers(title="agents", description="Which agent to run", dest="agent", required=True)
 
-  WormDomainAdaptor.add_parse_args(parser)
-  Executor.add_parser_args(parser)
+  a2c_parser = subparser.add_parser("a2c")
+  AgentRunner.add_parse_args(a2c_parser)
+  Executor.add_parser_args(a2c_parser)
+  A2CLearner.add_hyper_param_args(a2c_parser)
+  A2CLearner.add_config_args(a2c_parser)
+  WormDomain.add_parse_args(a2c_parser)
+
+  random = subparser.add_parser("rand")
+  AgentRunner.add_parse_args(random)
+  Executor.add_parser_args(random)
+  WormDomain.add_parse_args(random)
   return parser
 
 
@@ -25,21 +32,19 @@ def main():
     parser.error("--continue_training requires --state_dict")
 
   print("Run with {}", str(config))
-  domain = WormDomainAdaptor(config)
+  if config.agent == "a2c":
+    agent_class=A2CLearner
+  elif config.agent == "rand":
+    agent_class=RandomAgent
+  else:
+    parser.error("no valid agent")
+    return
 
-  with Executor(config=config, domain=domain) as executor:
-    # Hyperparameters
-    params = {}
-    params["gamma"] = config.gamma
-    params["alpha"] = config.alpha
-    params["entropy"] = config.entropy
-    params["entropy_fall"] = config.entropy_fall
-    future = executor.submit_task(
-      params=params,
-      state_dict=config.state_dict,
-      continue_training=config.continue_training,
-    )
-    print(future.get())
+  kwargs = vars(config)
+  runner = AgentRunner(**kwargs)
+  with Executor(runner=runner,**kwargs) as executor:
+    future = executor.submit_task(agent_class=agent_class, **kwargs,)
+    future.get()
 
 if __name__ == "__main__":
   main()
