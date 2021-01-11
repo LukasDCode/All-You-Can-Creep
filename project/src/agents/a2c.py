@@ -56,7 +56,7 @@ class A2CNet(nn.Module):
 
 class A2CNetSplit(nn.Module):
     def __init__(self, nr_input_features, nr_actions):
-        super(A2CNet, self).__init__()
+        super(A2CNetSplit, self).__init__()
         mlflow.log_param("network", "split" )
         nr_hidden_units = 64
         self.policy_base_net = nn.Sequential(
