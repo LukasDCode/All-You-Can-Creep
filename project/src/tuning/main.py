@@ -1,13 +1,18 @@
 import argparse
-from ..worm.domain import WormDomainAdaptor
+from ..worm.training import AgentRunner
+from ..worm.domain import WormDomain
 from .EAsimple import EAsimple
 from .Gridsearch import Gridsearch
 from ..exec.executor import Executor
+from ..agents.a2c import A2CLearner
+import mlflow
 
 def parse_config():
     parser = argparse.ArgumentParser(description='Run worms with hyper params')
+    WormDomain.add_parse_args(parser)
     Executor.add_parser_args(parser)
-    WormDomainAdaptor.add_parse_args(parser)
+    AgentRunner.add_parse_args(parser)
+    A2CLearner.add_config_args(parser)
     parser.add_argument('-variant', '--variant', required=False, type=str, choices=["evolution", "gridsearch"], default="evolution",
                         help="choice of tuningvariant")
     return parser.parse_args()
@@ -21,14 +26,25 @@ def main():
         "name": "EAsimple"
     }
     config = parse_config()
-    domain = WormDomainAdaptor(config)
+    kwargs = vars(config)
 
-    with Executor(config=config, domain=domain) as executor:
+
+    runner = AgentRunner(**kwargs)
+    mlflow.set_experiment(config.result_dir)
+    with Executor(runner=runner, **kwargs) as executor:
         if config.variant == "evolution":
-            evolution = EAsimple(executor, domain, params_eaSimple, result_dir=config.result_dir)
+            evolution = EAsimple(
+                executor=executor,
+                agent_class=A2CLearner,
+                param_dictionary=params_eaSimple,
+                result_dir=config.result_dir
+            )
             evolution.run()
         else:
-            gridsearch = Gridsearch(executor, domain,)
+            gridsearch = Gridsearch(
+                executor=executor,
+                agent_class=A2CLearner,
+            )
             gridsearch.run()
 
 if __name__ == "__main__":

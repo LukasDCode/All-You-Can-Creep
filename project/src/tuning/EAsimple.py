@@ -4,17 +4,23 @@ from pathlib import Path
 
 class EAsimple():
 
-    def __init__(self, executor, domain, param_dictionary, result_dir):
+    def __init__(
+        self,
+        executor,
+        agent_class,
+        param_dictionary,
+        result_dir,
+        **kwargs):
         """
 
         :param executor:
-        :param domain:
         :param param_dictionary:
         :param result_tsv:
         """
         self.__dict__.update(param_dictionary)
         self.executor = executor
-        self.domain = domain
+        self.hyper_param_data = [(k, v["min"], v["max"]) for k, v in agent_class.hyper_params().items()]
+        self.agent_class = agent_class
         self.winner = []
         self.global_maximum = []
         self.fitness_list = []
@@ -42,13 +48,13 @@ class EAsimple():
     def new_population(self):
         self.current_population = []
         for i in range(self.population_max):
-            individual = [random.uniform(min, max) for (_, min, max) in self.domain.param_dict()]
+            individual = [random.uniform(min, max) for (_, min, max) in self.hyper_param_data]
             self.current_population.append(individual)
 
     def unwrap_params(self, individual):
         params = {}
         for index, value in enumerate(individual):
-            params[self.domain.param_dict()[index][0]] = value
+            params[self.hyper_param_data[index][0]] = value
         return params
 
     def evaluate(self):
@@ -56,6 +62,9 @@ class EAsimple():
         futures = [self.eval(i) for i in self.current_population]
         for future in futures:
             rewards_array = future.get()
+            print(rewards_array)
+            rewards_array = rewards_array["reward"]
+
             winner = max(rewards_array)  # alternativ ginge noch der durchschnittliche reward
             stability = self.stability(rewards_array)
             speed = self.convergence_speed(rewards_array)
@@ -67,7 +76,11 @@ class EAsimple():
         return fitness_list
 
     def eval(self, individual):
-        return self.executor.submit_task(params=self.unwrap_params(individual))
+        params = self.unwrap_params(individual)
+        return self.executor.submit_task(
+            agent_class=self.agent_class,
+            **params,
+        )
 
     def mate(self):
         index_current_population_mate = []
@@ -99,7 +112,7 @@ class EAsimple():
             new_individuum = []
             for index, param in enumerate(individuum):
                 if np.random.rand() < self.mutation_rate:
-                    (_, min, max) = self.domain.param_dict()[index]
+                    (_, min, max) = self.hyper_param_data[index]
                     new_param = random.uniform(min, max)
                     new_individuum.append(new_param)
                 else:

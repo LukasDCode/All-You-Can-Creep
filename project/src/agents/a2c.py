@@ -2,17 +2,19 @@ import random
 import math
 import mlflow
 import numpy
+from numpy.core.fromnumeric import shape
 import torch
+from torch._C import device
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
 
 from .agent import Agent
+from .advantages import temporal_difference, advantage_actor_critic, reinforce, nstep
 
 class A2CNet(nn.Module):
     def __init__(self, nr_input_features, nr_actions):
         super(A2CNet, self).__init__()
-        mlflow.log_param("network", "multihead" )
         nr_hidden_units = 64
         self.fc_net = nn.Sequential(
             nn.Linear(nr_input_features, nr_hidden_units),
@@ -57,7 +59,6 @@ class A2CNet(nn.Module):
 class A2CNetSplit(nn.Module):
     def __init__(self, nr_input_features, nr_actions):
         super(A2CNetSplit, self).__init__()
-        mlflow.log_param("network", "split" )
         nr_hidden_units = 64
         self.policy_base_net = nn.Sequential(
             nn.Linear(nr_input_features, nr_hidden_units),
@@ -82,10 +83,10 @@ class A2CNetSplit(nn.Module):
             nn.Linear(nr_hidden_units,1),
         )
 
-    def forward(self, state):
-        x = self.policy_base_net(state)
+    def forward(self, states):
+        x = self.policy_base_net(states)
         # x = x.view(x.size(0), -1) # reshapes the tensor
-        return (self.action_head_loc(x), self.action_head_scale(x)) ,  self.value_head(state)
+        return (self.action_head_loc(x), self.action_head_scale(x)) ,  self.value_head(states)
 
     # save with  torch.save(model.state_dict(), path)
     def state_dict(self):
@@ -106,54 +107,129 @@ class A2CNetSplit(nn.Module):
         return self
 
 
+DEFAULT_ALPHA = 0.001
+DEFAULT_GAMMA = 0.999
+DEFAULT_ENTROPY = 1e-4
+DEFAULT_ENTROPY_FALL= 0.999
 
+DEFAULT_NET = "multihead"
+DEFAULT_ADVANTAGE = "a2c"
 
 """
  Autonomous agent using Synchronous Actor-Critic.
 """
 class A2CLearner(Agent):
 
+    @staticmethod
+    def agent_name():
+        return "a2c"
+
+    @staticmethod
+    def hyper_params():
+        return {
+            "alpha": {"min": 0.001, "max": 0.001},
+            "gamma": {"min": 0.99, "max": 1.},
+            "entropy_beta": {"min": 1e-6, "max": 1},
+            "entropy_fall": {"min": 0.99, "max": 1},
+        }
+
+    @staticmethod
+    def add_hyper_param_args(parser):
+        parser.add_argument('-a','--alpha', type=float, default=DEFAULT_ALPHA, help='the learning rate')
+        parser.add_argument('-g','--gamma', type=float, default=DEFAULT_GAMMA , help='the discount factor for rewards')
+        parser.add_argument('-e', '--entropy_beta', type=float, default=DEFAULT_ENTROPY, help='the exploitation rate')
+        parser.add_argument('-ef', '--entropy_fall', type=float, default=DEFAULT_ENTROPY_FALL, help='the entropy decay')
+        return parser
+
+    @staticmethod
+    def add_config_args(parser):
+        parser.add_argument('-adv', '--advantage', type=str, default=DEFAULT_ADVANTAGE, choices=["a2c", "td", "3step", "reinforce"])
+        parser.add_argument('-net', '--network', type=str, default=DEFAULT_NET, choices=["split", "multihead"])
+        return parser
+
     def state_dict(self):
-        return self.a2c_net.state_dict()
+        return {
+            "model": self.a2c_net.state_dict(),
+            "config":  self.config,
+            "state": {k: self.__dict__.get(k) for k in self.config}
+        }
 
-    def load_state_dict(self, state_dict, strict=False):
-        self.a2c_net.load_state_dict(state_dict,strict=strict,)
+    def __init__(
+        self,
+        env,
+        gamma=DEFAULT_GAMMA, alpha=DEFAULT_ALPHA, entropy_beta=DEFAULT_ENTROPY, entropy_fall=DEFAULT_ENTROPY_FALL, # hyper params
+        advantage=DEFAULT_ADVANTAGE, network=DEFAULT_NET, # agent config
+        only_model=False, state_dict = None, # Loading model
+        **kwargs,
+        ):
+        super().__init__(env)
 
-
-    def __init__(self, params):
         self.eps = numpy.finfo(numpy.float32).eps.item()
-        self.gamma = params["gamma"]
-        self.nr_actions = params["nr_actions"]
-        self.alpha = params["alpha"]
-        self.entropy_beta = params["entropy"]
-        self.entropy_fall = params["entropy_fall"]
-        self.nr_input_features = params["nr_input_features"]
-        self.transitions = []
         self.device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda:0")
-        self.update_first = False
+        if state_dict:
+            state_dict = state_dict["agent"]
 
-        # self.a2c_net = A2CNet(self.nr_input_features, self.nr_actions).to(self.device)
-        self.a2c_net = A2CNetSplit(self.nr_input_features, self.nr_actions).to(self.device)
+        """Params from constructor"""
+        self.config = {
+            "gamma":gamma,
+            "alpha":alpha,
+            "entropy_beta":entropy_beta,
+            "entropy_fall": entropy_fall,
+            "network": network,
+            "advantage": advantage,
+        }
+        """On full state loading override initial params"""
+        if not only_model and state_dict:
+            print("Loading initial params from state dict...")
+            self.config.update(state_dict["config"])
+            print("Loaded initial params from state dict.")
+        self.__dict__.update(self.config)
 
-        self.optimizer = torch.optim.Adam(self.a2c_net.parameters(), lr=params["alpha"])
-        self.distance_index_of_observation = 4
-        mlflow.log_param("agent", "a2c")
+        """On full state loading override param state"""
+        if not only_model and state_dict:
+            print("Loaded state params from state dict.")
+            self.__dict__.update(state_dict["state"])
+            print("Loaded state params from state dict.")
+
+        """Create network"""
+        if(advantage == "multihead"):
+            self.a2c_net = A2CNet(self.nr_input_features, self.nr_actions).to(self.device)
+        else:
+            self.a2c_net = A2CNetSplit(self.nr_input_features, self.nr_actions).to(self.device)
+
+        """Load state dict into model"""
+        if state_dict:
+            print("Loading model...")
+            self.a2c_net.load_state_dict(state_dict["model"])
+            print("Loaded model.")
+
+        self.optimizer = torch.optim.Adam(self.a2c_net.parameters(), lr=self.alpha)
+        self.transitions = []
+
+        """Log Params"""
+        print(f"Loaded A2CLearner {str(self.config)}")
+        mlflow.log_params({
+            "agent": "a2c",
+            **self.config,
+        })
 
     """
      Samples a new action using the policy network.
     """
     def policy(self, state):
-        (action_locs, action_scales), _ = self.predict_policy([state])
+        (action_locs, action_scales), _ = self.predict_policy(
+            torch.tensor([state], device=self.device, dtype=torch.float)
+        )
         # print("Actions {} {}".format( action_locs, action_scales))
         m = torch.distributions.normal.Normal(action_locs, action_scales)
-        return m.sample().detach().cpu().numpy()
+        action = m.sample().detach() # Size([1,9])
+        return action.cpu().numpy()
 
 
     """
      Predicts the action probabilities.
     """       
     def predict_policy(self, states):
-        states = torch.tensor(states, device=self.device, dtype=torch.float)
         return self.a2c_net(states)
         
     """
@@ -163,7 +239,19 @@ class A2CLearner(Agent):
         states = torch.tensor(states, device=self.device, dtype=torch.float)
         return self.value_net(states)
 
-        
+    def _normalized_returns(self, rewards):
+        # Calculate and normalize discounted returns
+        discounted_returns = []
+        R = 0
+        for reward in reversed(rewards):
+            R = reward + self.gamma*R
+            discounted_returns.append(R)
+        discounted_returns.reverse()
+        discounted_returns = torch.tensor(discounted_returns, device=self.device, dtype=torch.float).detach()
+        normalized_returns = (discounted_returns - discounted_returns.mean())
+        normalized_returns /= (discounted_returns.std() + self.eps)
+        return normalized_returns
+
     """
      Performs a learning update of the currently learned policy and value function.
     """
@@ -173,130 +261,59 @@ class A2CLearner(Agent):
 
         if done:
             states, actions, rewards, next_states, dones = tuple(zip(*self.transitions))
-            
-            # Calculate and normalize discounted returns
-            discounted_returns = []
-            R = 0
-            for reward in reversed(rewards):
-                R = reward + self.gamma*R
-                discounted_returns.append(R)
-            discounted_returns.reverse()
-            rewards = torch.tensor(rewards, device=self.device, dtype=torch.float)
-            discounted_returns = torch.tensor(discounted_returns, device=self.device, dtype=torch.float).detach()
-            normalized_returns = (discounted_returns - discounted_returns.mean())
-            normalized_returns /= (discounted_returns.std() + self.eps)
 
-            # Calculate losses of policy and value function
-            actions = torch.tensor(actions, device=self.device, dtype=torch.float)
-            (action_locs, action_scales), state_values = self.predict_policy(states) # Tupel + value_head --- return aus Zeile 29: tupel((action_probs_loc, action_probs_scale), state_values)
-            _, next_state_values = self.predict_policy(next_states)
-            states = torch.tensor(states, device=self.device, dtype=torch.float)
+            normalized_returns = self._normalized_returns(rewards)                          # Shape([1000])
+            rewards = torch.tensor(rewards, device=self.device, dtype=torch.float)          # Shape([1000])
+            actions = torch.tensor(actions, device=self.device, dtype=torch.float)          # Shape([1000,1,9])
+            actions = actions.squeeze(1) # remove n worms dim                               # Shape([1000,9])
+            states = torch.tensor(states, device=self.device, dtype=torch.float)            # Shape[1000,64]
+            next_states = torch.tensor(next_states, device=self.device, dtype=torch.float)  # Shape[1000,64]
 
+            (action_locs, action_scales), state_values = self.predict_policy(states)        # Shape[1000,9], Shape[1000,9], Shape[1000,1]
+            state_values = state_values.squeeze(1)                                          # Shape[1000]
+            _, next_state_values = self.predict_policy(next_states)                         # Shape[1000,1]
+            next_state_values = next_state_values.squeeze(1)                                # Shape[1000]
 
-            def _loss_other():
-                policy_losses, entropy_losses, value_losses, distances = [], [], [], [],
-                zipped_data = zip(action_locs, action_scales, actions, state_values, next_state_values, normalized_returns, rewards)
-                for index ,(action_loc, action_scale, action, value, next_value, R, reward) in enumerate(zipped_data):
-                    
-                    def reinforce():
-                        if not self.update_first:
-                            self.update_first = True
-                            mlflow.log_param("advantage","reinforce")
-                        return R
-                    
-                    def advantage_actor_critic():
-                        if not self.update_first:
-                            self.update_first = True
-                            mlflow.log_param("advantage","a2c")
-                        return R - value.item()
+            if self.advantage == "a2c":
+                advantages = advantage_actor_critic(Rs=normalized_returns,values=state_values,)
+            elif self.advantage == "3step":
+                advantages = nstep(
+                    n=3,
+                    gamma=self.gamma,
+                    rewards=rewards,
+                    values=state_values,
+                    next_values=next_state_values,
+                )
+            elif self.advantage == "td":
+                advantages = temporal_difference(
+                    gamma=self.gamma,
+                    rewards=rewards,
+                    values=state_values,
+                    next_values=next_state_values,
+                )
+            elif self.advantage == "reinforce":
+                advantages = reinforce(Rs=normalized_returns,)
+            else:
+                raise RuntimeError()
 
-                    def temporal_difference():
-                        if not self.update_first:
-                            self.update_first = True
-                            mlflow.log_param("advantage","temporal difference")
-                        return reward + self.gamma * next_value.item() - value.item() # temporal difference
-                     
-                    def nstep(n=3):
-                        if not self.update_first:
-                            self.update_first = True
-                            mlflow.log_param("advantage", str(n) + "-step")
-                        n = min(n, len(rewards) - index -1 )
-                        advantage_0 = sum([self.gamma**k *rewards[index + k] for k in range(n-1)])
-                        advantage_1 = self.gamma ** next_state_values[index + n]
-                        advantage_2 = - value.item()
-                        return advantage_0 + advantage_1 + advantage_2 
+            advantages = advantages # Shape[1000]
+            cur_entropy_beta = self.entropy_beta * (self.entropy_fall ** nr_episode)
 
-                    # advantage = nstep() # nstep td
-                    advantage = advantage_actor_critic()
-                    loss_value = F.mse_loss(value.squeeze(-1), R)
+            normal_distr = torch.distributions.normal.Normal(action_locs, action_scales)
+            entropy_losses = cur_entropy_beta * normal_distr.entropy().mean(1) * advantages
+            policy_losses = - normal_distr.log_prob(actions).mean(1) * advantages # Shape [1000]
+            value_loss = F.mse_loss(state_values, normalized_returns)  # Shape []
 
-                    normal = torch.distributions.normal.Normal(action_loc, action_scale) ## tensor draus bauen
-                    loss_policy = -normal.log_prob(action)* advantage
-
-                    # loss_policy = F.mse_loss(action_loc - action) * advantage
-
-                    entropy_loss = (self.entropy_beta*self.entropy_fall) * (-(torch.log(2*math.pi*action_scale) + 1)/2).mean()*advantage # soft actor critic ? where does it come from
-                    # entropy_loss = self.entropy_beta * (-(torch.log(2*math.pi*action_scale) + 1)/2).mean()*advantage # soft actor critic ? where does it come from
-                    # self.entropy_beta *=  self.entropy_fall
-
-                    # log gauss distribution
-                    """
-                    p1_0 = - ((action_loc - action) ** 2)
-                    p1_1 = (2*action_scale.clamp(min=1e-3))
-                    p1 = p1_0 / p1_1
-                    p2 = - torch.log(torch.sqrt(2 * math.pi * action_scale))
-                    loss_policy = - ((p1 + p2) * advantage).mean()
-                    """
-                    # the entropy loss tries to weaken the gradient of the action scale, to allow proper exploration
-
-                    #entropy_falloff = ?
-
-
-                    policy_losses.append(loss_policy)
-                    entropy_losses.append(entropy_loss)
-                    value_losses.append(loss_value)
-
-                final_loss_policy = torch.stack(policy_losses).sum() 
-                final_loss_entropy = torch.stack(entropy_losses).sum() 
-                final_loss_value = torch.stack(value_losses).sum()
-
-                """
-                if nr_episode > 1500:
-                    final_loss = final_loss_policy + final_loss_value
-                else:
-                    final_loss = final_loss_policy + final_loss_entropy + final_loss_value
-                """
-
-                final_loss = final_loss_policy + final_loss_entropy + final_loss_value
-
-                # calculate the variance of action_scale
-                action_scales_numpy = action_scales.detach().cpu().numpy()
-                mean_of_variance = [action_scales_numpy[i].mean() for i in range(len(action_scales_numpy))]
-                variance_of_variance = numpy.var(mean_of_variance)
-
-                flat_variance = numpy.var(action_scales.detach().cpu().numpy().flatten())
-                
-
-                np_states = states.detach().cpu().numpy() # copy and detach from gradient graph, move to cpu if not, and convert to numpy
-                [distances.append(np_states[i][self.distance_index_of_observation]) for i in range(len(np_states))]
-                avg_distance = 0 if len(distances) == 0 else sum(distances)/len(distances)
-                measures = {
-                    "loss": final_loss.detach().cpu().item(),
-                    "loss_policy": final_loss_policy.detach().cpu().item(),
-                    "loss_entropy": final_loss_entropy.detach().cpu().item(),
-                    "loss_value" : final_loss_value.detach().cpu().item(),
-                    "action_scale":  float(action_scales.detach().cpu().mean().numpy().mean()),
-                    "action_scale_variance": float(variance_of_variance),
-                    "action_scale_flat_variance": float(flat_variance),
-                    "min_distance": float(min(distances)),
-                    "max_distance": float(max(distances)),
-                    "avg_distance": float(avg_distance),
-                    "last_distance": float(distances[-1]),
-
-                }
-                return final_loss,measures 
-            
-            loss, measures = _loss_other()
+            entropy_loss,  policy_loss = entropy_losses.sum(), policy_losses.sum()
+            loss = entropy_loss + value_loss + policy_loss
+            measures = {
+                "loss": loss.detach().cpu().item(),
+                "loss_policy": policy_loss.detach().cpu().item() ,
+                "loss_entropy": entropy_loss.detach().cpu().item(),
+                "loss_value" : value_loss.detach().cpu().item(),
+                "action_scale_avg": float(action_scales.detach().cpu().mean().numpy().mean()),
+                "action_scale_flat_variance": float(numpy.var(action_scales.detach().cpu().numpy().flatten())),
+            }
 
             # Optimize joint batch loss
             if nr_episode % 10: # reset grad at 0, 10, 20...
@@ -310,4 +327,4 @@ class A2CLearner(Agent):
 
             return measures
 
-        return None
+        return {}
