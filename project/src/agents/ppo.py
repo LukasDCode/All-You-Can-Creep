@@ -1,5 +1,6 @@
 import random
 import math
+from types import DynamicClassAttribute
 import mlflow
 import numpy
 from numpy.core.fromnumeric import shape, std
@@ -25,23 +26,18 @@ class A2CNet(nn.Module):
             nn.Linear(nr_hidden_units, nr_actions),
             nn.Tanh(),
         )
-        self.action_head_scale = nn.Sequential( # Actor SCALE-Ausgabe von Policy
-            nn.Linear(nr_hidden_units, nr_actions),
-            nn.Softplus(),
-        ) # Actor = Policy-Function NN
         self.value_head = nn.Linear(nr_hidden_units, 1) # Critic = Value-Function NN
 
     def forward(self, x):
         x = self.fc_net(x)
         # x = x.view(x.size(0), -1) # reshapes the tensor
-        return (self.action_head_loc(x), self.action_head_scale(x)) ,  self.value_head(x)
+        return self.action_head_loc(x),  self.value_head(x)
 
     # save with  torch.save(model.state_dict(), path)
     def state_dict(self):
         state_dict = {
             "fc_net": self.fc_net.state_dict(),
             "action_head_loc": self.action_head_loc.state_dict(),
-            "action_head_scale": self.action_head_scale.state_dict(),
             "value_head": self.value_head.state_dict(),
         }
         return state_dict
@@ -50,66 +46,15 @@ class A2CNet(nn.Module):
     def load_state_dict(self, state_dict, strict=False):
         self.fc_net.load_state_dict(state_dict["fc_net"], strict=strict,)
         self.action_head_loc.load_state_dict(state_dict["action_head_loc"],)
-        self.action_head_scale.load_state_dict(state_dict["action_head_scale"],)
         self.value_head.load_state_dict(state_dict["value_head"], strict=strict, )
         return self
 
-
-class A2CNetSplit(nn.Module):
-    def __init__(self, nr_input_features, nr_actions):
-        super(A2CNetSplit, self).__init__()
-        nr_hidden_units = 64
-        self.policy_base_net = nn.Sequential(
-            nn.Linear(nr_input_features, nr_hidden_units),
-            nn.ReLU(),
-            nn.Linear(nr_hidden_units, nr_hidden_units),
-            nn.ReLU()
-        )
-        self.action_head_loc = nn.Sequential( # Actor LOC-Ausgabe von Policy
-            nn.Linear(nr_hidden_units, nr_actions),
-            nn.Tanh(),
-        )
-        self.action_head_scale = nn.Sequential( # Actor SCALE-Ausgabe von Policy
-            nn.Linear(nr_hidden_units, nr_actions),
-            nn.Softplus(),
-        ) # Actor = Policy-Function NN
-
-        self.value_head = nn.Sequential( #Critic = Value-Function
-            nn.Linear(nr_input_features, nr_hidden_units),
-            nn.ReLU(),
-            nn.Linear(nr_hidden_units, nr_hidden_units),
-            nn.ReLU(),
-            nn.Linear(nr_hidden_units,1),
-        )
-
-    def forward(self, states):
-        x = self.policy_base_net(states)
-        # x = x.view(x.size(0), -1) # reshapes the tensor
-        return (self.action_head_loc(x), self.action_head_scale(x)) ,  self.value_head(states)
-
-    # save with  torch.save(model.state_dict(), path)
-    def state_dict(self):
-        state_dict = {
-            "policy_base_net": self.policy_base_net.state_dict(),
-            "action_head_loc": self.action_head_loc.state_dict(),
-            "action_head_scale": self.action_head_scale.state_dict(),
-            "value_head": self.value_head.state_dict(),
-        }
-        return state_dict
-
-    # load with model.load_state_dict(torch.load(path))
-    def load_state_dict(self, state_dict, strict=False):
-        self.policy_base_net.load_state_dict(state_dict["policy_base_net"], strict=strict,)
-        self.action_head_loc.load_state_dict(state_dict["action_head_loc"], strict=strict,)
-        self.action_head_scale.load_state_dict(state_dict["action_head_scale"], strict=strict)
-        self.value_head.load_state_dict(state_dict["value_head"], strict=strict, )
-        return self
 
 
 DEFAULT_ALPHA = 0.001
 DEFAULT_GAMMA = 0.999
-DEFAULT_ENTROPY = 1e-4
-DEFAULT_ENTROPY_FALL= 0.999
+DEFAULT_SCALE_INIT = 0.9 
+DEFAULT_SCALE_FALLOFF= 0.999
 
 DEFAULT_NET = "multihead"
 DEFAULT_ADVANTAGE = "a2c"
@@ -117,33 +62,32 @@ DEFAULT_ADVANTAGE = "a2c"
 """
  Autonomous agent using Synchronous Actor-Critic.
 """
-class A2CLearner(Agent):
+class PPO(Agent):
 
     @staticmethod
     def agent_name():
-        return "a2c"
+        return "ppo"
 
     @staticmethod
     def hyper_params():
         return {
             "alpha": {"min": 0.001, "max": 0.001},
             "gamma": {"min": 0.99, "max": 1.},
-            "entropy_beta": {"min": 1e-6, "max": 1},
-            "entropy_fall": {"min": 0.99, "max": 1},
+            "scale_init": {"min": 0.1, "max": 10},
+            "scale_falloff": { "min": 0.9, "max": 1},
         }
 
     @staticmethod
     def add_hyper_param_args(parser):
         parser.add_argument('-a','--alpha', type=float, default=DEFAULT_ALPHA, help='the learning rate')
         parser.add_argument('-g','--gamma', type=float, default=DEFAULT_GAMMA , help='the discount factor for rewards')
-        parser.add_argument('-e', '--entropy_beta', type=float, default=DEFAULT_ENTROPY, help='the exploitation rate')
-        parser.add_argument('-ef', '--entropy_fall', type=float, default=DEFAULT_ENTROPY_FALL, help='the entropy decay')
+        parser.add_argument('-si', '--scale_init', type=float, default=DEFAULT_SCALE_INIT, help='the scale at start')
+        parser.add_argument('-sf', '--scale_falloff', type=float, default=DEFAULT_SCALE_FALLOFF, help='the scale decay')
         return parser
 
     @staticmethod
     def add_config_args(parser):
         parser.add_argument('-adv', '--advantage', type=str, default=DEFAULT_ADVANTAGE, choices=["a2c", "td", "3step", "reinforce"])
-        parser.add_argument('-net', '--network', type=str, default=DEFAULT_NET, choices=["split", "multihead"])
         return parser
 
     def state_dict(self):
@@ -156,8 +100,8 @@ class A2CLearner(Agent):
     def __init__(
         self,
         env,
-        gamma=DEFAULT_GAMMA, alpha=DEFAULT_ALPHA, entropy_beta=DEFAULT_ENTROPY, entropy_fall=DEFAULT_ENTROPY_FALL, # hyper params
-        advantage=DEFAULT_ADVANTAGE, network=DEFAULT_NET, # agent config
+        gamma=DEFAULT_GAMMA, alpha=DEFAULT_ALPHA, scale_init=DEFAULT_SCALE_INIT, scale_falloff=DEFAULT_SCALE_FALLOFF,
+        advantage=DEFAULT_ADVANTAGE, 
         only_model=False, state_dict = None, # Loading model
         **kwargs,
         ):
@@ -172,11 +116,11 @@ class A2CLearner(Agent):
         self.config = {
             "gamma":gamma,
             "alpha":alpha,
-            "entropy_beta":entropy_beta,
-            "entropy_fall": entropy_fall,
-            "network": network,
+            "scale_init": scale_init,
+            "scale_falloff": scale_falloff,
             "advantage": advantage,
         }
+
         """On full state loading override initial params"""
         if not only_model and state_dict:
             print("Loading initial params from state dict...")
@@ -184,6 +128,7 @@ class A2CLearner(Agent):
             print("Loaded initial params from state dict.")
         self.__dict__.update(self.config)
 
+        self.cur_scale = scale_init
         """On full state loading override param state"""
         if not only_model and state_dict:
             print("Loaded state params from state dict.")
@@ -191,10 +136,7 @@ class A2CLearner(Agent):
             print("Loaded state params from state dict.")
 
         """Create network"""
-        if(advantage == "multihead"):
-            self.a2c_net = A2CNet(self.nr_input_features, self.nr_actions).to(self.device)
-        else:
-            self.a2c_net = A2CNetSplit(self.nr_input_features, self.nr_actions).to(self.device)
+        self.a2c_net = A2CNet(self.nr_input_features, self.nr_actions).to(self.device)
 
         """Load state dict into model"""
         if state_dict:
@@ -216,11 +158,13 @@ class A2CLearner(Agent):
      Samples a new action using the policy network.
     """
     def policy(self, state):
-        (action_locs, action_scales), _ = self.predict_policy(
+        action_locs, _ = self.predict_policy(
             torch.tensor([state], device=self.device, dtype=torch.float)
         )
+        cur_scales = torch.zeros(self.nr_actions, device=self.device, dtype=torch.float) + self.cur_scale
+        #print(cur_scales)
         # print("Actions {} {}".format( action_locs, action_scales))
-        m = torch.distributions.normal.Normal(action_locs, action_scales)
+        m = torch.distributions.normal.Normal(action_locs, cur_scales)
         action = m.sample().detach() # Size([1,9])
         return action.cpu().numpy()
 
@@ -270,6 +214,7 @@ class A2CLearner(Agent):
         if done:
             states, actions, rewards, next_states, dones = tuple(zip(*self.transitions))
 
+            action_scales = torch.zeros(len(states), self.nr_actions, device=self.device, dtype=torch.float) + self.cur_scale
             normalized_returns = self._normalized_returns(rewards)                          # Shape([1000])
             rewards = torch.tensor(rewards, device=self.device, dtype=torch.float)          # Shape([1000])
             actions = torch.tensor(actions, device=self.device, dtype=torch.float)          # Shape([1000,1,9])
@@ -277,7 +222,7 @@ class A2CLearner(Agent):
             states = torch.tensor(states, device=self.device, dtype=torch.float)            # Shape[1000,64]
             next_states = torch.tensor(next_states, device=self.device, dtype=torch.float)  # Shape[1000,64]
 
-            (action_locs, action_scales), state_values = self.predict_policy(states)        # Shape[1000,9], Shape[1000,9], Shape[1000,1]
+            action_locs, state_values = self.predict_policy(states)        # Shape[1000,9], Shape[1000,9], Shape[1000,1]
             state_values = state_values.squeeze(1)                                          # Shape[1000]
             _, next_state_values = self.predict_policy(next_states)                         # Shape[1000,1]
             next_state_values = next_state_values.squeeze(1)                                # Shape[1000]
@@ -305,10 +250,7 @@ class A2CLearner(Agent):
                 raise RuntimeError()
 
             advantages = advantages # Shape[1000]
-            cur_entropy_beta = self.entropy_beta * (self.entropy_fall ** nr_episode)
-
             normal_distr = torch.distributions.normal.Normal(action_locs, action_scales, )
-            entropy_losses = - cur_entropy_beta * normal_distr.entropy().mean(1) * advantages  # Shape [1000,9] -> Shape [1000] 
             policy_losses = - normal_distr.log_prob(actions).mean(1) * advantages # Shape [1000]
 
             value_loss = F.mse_loss(state_values, normalized_returns)
@@ -316,16 +258,14 @@ class A2CLearner(Agent):
 
             #print(action_locs)
 
-            entropy_loss,  policy_loss, = entropy_losses.sum(), policy_losses.sum(),
-            loss = entropy_loss + value_loss + policy_loss
+            policy_loss, =  policy_losses.sum(),
+            loss =  value_loss + policy_loss
             measures = {
                 "loss": loss.detach().cpu().item(),
                 "loss_policy": policy_loss.detach().cpu().item() ,
-                "loss_entropy": entropy_loss.detach().cpu().item(),
                 "loss_value" : value_loss.detach().cpu().item(),
                 "advantages_avg" : float(advantages.detach().cpu().numpy().mean()),
                 "action_scale_avg": float(action_scales.detach().cpu().mean().numpy().mean()),
-                "action_scale_flat_variance": float(numpy.var(action_scales.detach().cpu().numpy().flatten())),
             }
 
             # Optimize joint batch loss
@@ -338,6 +278,7 @@ class A2CLearner(Agent):
             
             # Don't forget to delete all experiences afterwards! This is an on-policy algorithm.
             self.transitions.clear()
+            self.cur_scale -= self.scale_falloff
 
             return measures
 

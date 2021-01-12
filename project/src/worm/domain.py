@@ -41,5 +41,8 @@ class WormDomain():
             side_channels=[channel],
         )
         unity_env.reset()
-        env = UnityToGymWrapper(unity_env)
+        env = UnityToGymWrapper(
+            unity_env,
+            #allow_multiple_obs=True,
+            )
         return env
