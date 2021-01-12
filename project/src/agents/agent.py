@@ -19,8 +19,9 @@ class Agent:
             "env": env,
             "nr_input_features": env.observation_space.shape[-1],
             "nr_actions": env.action_space.shape[0],
+            "lower_bound": env.action_space.low[0],
+            "upper_bound": env.action_space.high[0],
         })
-        pass
 
     """
      Behavioral strategy of the agent. Maps states to actions.
