@@ -300,7 +300,7 @@ class A2CLearner(Agent):
             cur_entropy_beta = self.entropy_beta * (self.entropy_fall ** nr_episode)
 
             normal_distr = torch.distributions.normal.Normal(action_locs, action_scales)
-            entropy_losses = cur_entropy_beta * normal_distr.entropy().mean(1) * advantages
+            entropy_losses = - cur_entropy_beta * normal_distr.entropy().mean(1) * advantages
             policy_losses = - normal_distr.log_prob(actions).mean(1) * advantages # Shape [1000]
             value_loss = F.mse_loss(state_values, normalized_returns)  # Shape []
 
