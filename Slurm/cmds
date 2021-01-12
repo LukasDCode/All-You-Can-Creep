@@ -1,0 +1,8 @@
+./grid.sh 60 split a2c worm_remastered
+./grid.sh 75 split td worm_remastered
+./grid.sh 90 split 3step worm_remastered
+./grid.sh 105 split reinforce 
+./grid.sh 120 multihead reinforce worm_remastered
+./grid.sh 135 multihead a2c worm_remastered
+./grid.sh 150 multihead td worm_remastered
+./grid.sh 165 multihead 3step worm_remastered
