@@ -303,8 +303,7 @@ class A2CLearner(Agent):
             entropy_losses = - cur_entropy_beta * normal_distr.entropy().mean(1) * advantages
             policy_losses = - normal_distr.log_prob(actions).mean(1) * advantages # Shape [1000]
 
-            value_losses = F.mse_loss(state_values, normalized_returns, reduction='none') * advantages
-            value_loss = value_losses.mean()
+            value_loss = F.mse_loss(state_values, normalized_returns)
 
 
             entropy_loss,  policy_loss, = entropy_losses.sum(), policy_losses.sum(),
@@ -314,6 +313,7 @@ class A2CLearner(Agent):
                 "loss_policy": policy_loss.detach().cpu().item() ,
                 "loss_entropy": entropy_loss.detach().cpu().item(),
                 "loss_value" : value_loss.detach().cpu().item(),
+                "advantages_avg" : float(advantages.detach().cpu().numpy().mean()),
                 "action_scale_avg": float(action_scales.detach().cpu().mean().numpy().mean()),
                 "action_scale_flat_variance": float(numpy.var(action_scales.detach().cpu().numpy().flatten())),
             }
