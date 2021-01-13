@@ -191,7 +191,7 @@ class A2CLearner(Agent):
             print("Loaded state params from state dict.")
 
         """Create network"""
-        if(advantage == "multihead"):
+        if(network == "multihead"):
             self.a2c_net = A2CNet(self.nr_input_features, self.nr_actions).to(self.device)
         else:
             self.a2c_net = A2CNetSplit(self.nr_input_features, self.nr_actions).to(self.device)
