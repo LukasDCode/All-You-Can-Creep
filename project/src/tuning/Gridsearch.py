@@ -13,6 +13,7 @@ class Gridsearch():
                 "entropy_beta":[0.003, 0.001, 0.0005,0.00025, 0.000125],
                 "entropy_fall":[1.0001, 1, 0.9999],
                 "advantage": ["a2c", "td", "reinforce"],
+                "batch_size": [10]
         }
         keys = [*hyperparams.keys()]
         recombinations = product(*[hyperparams[key] for key in keys])
