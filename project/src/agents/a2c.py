@@ -346,10 +346,11 @@ class A2CLearner(Agent):
             #print(measures["action_scale_avg"],measures["action_scale_avg"])
 
             # Optimize joint batch loss
-            if nr_episode % self.batch_size: # reset grad at 0, 10, 20...
+            o_step = self.batch_size 
+            if nr_episode % o_step == 0: # reset grad at 0, 10, 20...
                 self.optimizer.zero_grad()
             loss.backward()
-            if (nr_episode + 1) % self.batch_size: # step grad at 9,19,29... 
+            if (nr_episode + 1) % o_step == 0: # step grad at 9,19,29... 
                 self.optimizer.step()
             
             # Don't forget to delete all experiences afterwards! This is an on-policy algorithm.
