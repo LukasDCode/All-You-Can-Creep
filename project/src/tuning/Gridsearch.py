@@ -9,11 +9,10 @@ class Gridsearch():
     def run(self):
         hyperparams = {
                 "alpha":[0.001],
-                "gamma":[0.99, 0.999, 0.995, 0.9999,0.99995, 0.99999],
-                "entropy_beta":[1,0.75,0.5,0.25,0.125,0.075],
-                "entropy_fall":[1, 0.99999, 0.9999,0.999],
-                #"advantage": ["3step", "a2c", "td", "reinforce"],
-                #"network" : ["split", "multihead"],
+                "gamma":[0.99, 0.999, 0.995, 0.9999, 0.99995, 0.99999],
+                "entropy_beta":[0.003, 0.001, 0.0005,0.00025, 0.000125],
+                "entropy_fall":[1.0001, 1, 0.9999],
+                "advantage": ["a2c", "td", "reinforce"],
         }
         keys = [*hyperparams.keys()]
         recombinations = product(*[hyperparams[key] for key in keys])
