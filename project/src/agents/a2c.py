@@ -109,7 +109,8 @@ class A2CNetSplit(nn.Module):
 DEFAULT_ALPHA = 0.001
 DEFAULT_GAMMA = 0.999
 DEFAULT_ENTROPY = 1e-4
-DEFAULT_ENTROPY_FALL= 0.999
+DEFAULT_ENTROPY_FALL = 0.999
+DEFAULT_BATCH_SIZE = 10
 
 DEFAULT_NET = "multihead"
 DEFAULT_ADVANTAGE = "a2c"
@@ -130,6 +131,7 @@ class A2CLearner(Agent):
             "gamma": {"min": 0.99, "max": 1.},
             "entropy_beta": {"min": 1e-6, "max": 1},
             "entropy_fall": {"min": 0.99, "max": 1},
+            "batch_size": {"min": 10, "max": 10},
         }
 
     @staticmethod
@@ -138,6 +140,7 @@ class A2CLearner(Agent):
         parser.add_argument('-g','--gamma', type=float, default=DEFAULT_GAMMA , help='the discount factor for rewards')
         parser.add_argument('-e', '--entropy_beta', type=float, default=DEFAULT_ENTROPY, help='the exploitation rate')
         parser.add_argument('-ef', '--entropy_fall', type=float, default=DEFAULT_ENTROPY_FALL, help='the entropy decay')
+        parser.add_argument('-b', '--batch_size', type=int, default=DEFAULT_BATCH_SIZE, help='the batch size')
         return parser
 
     @staticmethod
@@ -156,7 +159,7 @@ class A2CLearner(Agent):
     def __init__(
         self,
         env,
-        gamma=DEFAULT_GAMMA, alpha=DEFAULT_ALPHA, entropy_beta=DEFAULT_ENTROPY, entropy_fall=DEFAULT_ENTROPY_FALL, # hyper params
+        gamma=DEFAULT_GAMMA, alpha=DEFAULT_ALPHA, entropy_beta=DEFAULT_ENTROPY, entropy_fall=DEFAULT_ENTROPY_FALL, batch_size=DEFAULT_BATCH_SIZE, # hyper params
         advantage=DEFAULT_ADVANTAGE, network=DEFAULT_NET, # agent config
         only_model=False, state_dict = None, # Loading model
         **kwargs,
@@ -174,6 +177,7 @@ class A2CLearner(Agent):
             "alpha":alpha,
             "entropy_beta":entropy_beta,
             "entropy_fall": entropy_fall,
+            "batch_size": batch_size,
             "network": network,
             "advantage": advantage,
         }
@@ -342,11 +346,10 @@ class A2CLearner(Agent):
             #print(measures["action_scale_avg"],measures["action_scale_avg"])
 
             # Optimize joint batch loss
-            o_step = 10
-            if nr_episode % o_step: # reset grad at 0, 10, 20...
+            if nr_episode % self.batch_size: # reset grad at 0, 10, 20...
                 self.optimizer.zero_grad()
             loss.backward()
-            if (nr_episode + 1) % o_step: # step grad at 9,19,29... 
+            if (nr_episode + 1) % self.batch_size: # step grad at 9,19,29... 
                 self.optimizer.step()
             
             # Don't forget to delete all experiences afterwards! This is an on-policy algorithm.
