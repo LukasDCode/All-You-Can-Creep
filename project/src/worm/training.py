@@ -65,7 +65,7 @@ class AgentRunner(Runner):
             sum_reward += reward
             time_step += 1
         if nr_episode % 25 == 0:
-            print(nr_episode, ":", sum_reward)
+            print(f"e: {nr_episode}, r: {sum_reward}, i: {time_step}")
         # Add domain specific measures
         return {
             **domain.evaluate(states),

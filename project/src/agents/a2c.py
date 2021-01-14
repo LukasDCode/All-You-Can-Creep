@@ -249,16 +249,7 @@ class A2CLearner(Agent):
         discounted_returns.reverse()
 
         discounted_returns = torch.tensor(discounted_returns, device=self.device, dtype=torch.float).detach()
-        #print("shape", discounted_returns.size())
-
-        #normalized_returns = F.normalize(discounted_returns, dim=0, eps=self.eps)
-        #print("n1 : " , normalized_returns)
-
-        normalized_returns = (discounted_returns - discounted_returns.mean())
-        normalized_returns /= (discounted_returns.std() + self.eps)
-        #print("n2 : " , normalized_returns)
-
-        return normalized_returns
+        return F.normalize(discounted_returns, dim=0)
 
     """
      Performs a learning update of the currently learned policy and value function.
@@ -279,8 +270,10 @@ class A2CLearner(Agent):
 
             (action_locs, action_scales), state_values = self.predict_policy(states)        # Shape[1000,9], Shape[1000,9], Shape[1000,1]
             state_values = state_values.squeeze(1)                                          # Shape[1000]
+            state_values = F.normalize(state_values, dim=0, eps=self.eps)
             _, next_state_values = self.predict_policy(next_states)                         # Shape[1000,1]
             next_state_values = next_state_values.squeeze(1)                                # Shape[1000]
+            next_state_values = F.normalize(state_values, dim=0, eps=self.eps)
 
             if self.advantage == "a2c":
                 advantages = advantage_actor_critic(Rs=normalized_returns,values=state_values,)
@@ -304,12 +297,22 @@ class A2CLearner(Agent):
             else:
                 raise RuntimeError()
 
-            advantages = advantages # Shape[1000]
+            advantages = advantages # Shape[1000] 
             cur_entropy_beta = self.entropy_beta * (self.entropy_fall ** nr_episode)
 
             normal_distr = torch.distributions.normal.Normal(action_locs, action_scales, )
             entropy_losses = - cur_entropy_beta * normal_distr.entropy().mean(1) * advantages  # Shape [1000,9] -> Shape [1000] 
             policy_losses = - normal_distr.log_prob(actions).mean(1) * advantages # Shape [1000]
+
+            # test loss to make scale loss not rise to high
+            #max_scale_value = max(1, 2 - 1/6000*nr_episode) 
+            max_scale_value = 1  
+            max_scale_tensor = torch.zeros(action_scales.size(), device=self.device) + max_scale_value
+            max_scale_bound_loss = F.mse_loss(action_scales.clamp(min=max_scale_value), max_scale_tensor)
+
+            #min_scale_value = max(0.1, 0.8 -  7/10/6000*nr_episode)
+            #min_scale_tensor = torch.zeros(action_scales.size(), device=self.device) + min_scale_value
+            #min_scale_bound_loss = F.mse_loss(action_scales.clamp(max=min_scale_value), min_scale_tensor)
 
             value_loss = F.mse_loss(state_values, normalized_returns)
             #value_loss = F.mse_loss(state_values, normalized_returns, reduction="none").mean(1).sum() # Shape [1000,9]
@@ -317,16 +320,26 @@ class A2CLearner(Agent):
             #print(action_locs)
 
             entropy_loss,  policy_loss, = entropy_losses.sum(), policy_losses.sum(),
-            loss = entropy_loss + value_loss + policy_loss
+            loss = entropy_loss + value_loss + policy_loss + max_scale_bound_loss #+ min_scale_bound_loss
             measures = {
-                "loss": loss.detach().cpu().item(),
-                "loss_policy": policy_loss.detach().cpu().item() ,
-                "loss_entropy": entropy_loss.detach().cpu().item(),
-                "loss_value" : value_loss.detach().cpu().item(),
-                "advantages_avg" : float(advantages.detach().cpu().numpy().mean()),
-                "action_scale_avg": float(action_scales.detach().cpu().mean().numpy().mean()),
-                "action_scale_flat_variance": float(numpy.var(action_scales.detach().cpu().numpy().flatten())),
+                "loss": loss.item(),
+                "loss_policy": policy_loss.item() ,
+                "loss_entropy": entropy_loss.item(),
+                "loss_value" : value_loss.item(),
+                #"loss_max_scale_treshold": max_scale_value,
+                "loss_max_scale": max_scale_bound_loss.item(),
+                #"loss_min_scale_threshold": min_scale_value,
+                #"loss_min_scale": min_scale_bound_loss.item(),
+                "advantages_std" : advantages.std().item(),
+                "action_loc_std": action_locs.std().item(),
+                "action_scale_avg": action_scales.mean().item(),
+                "action_scale_std": action_scales.std().item(),
+                "state_value_avg": state_values.mean().item(),
+                "state_value_std": state_values.std().item(),
             }
+            #print(rewards.sum().cpu().item())
+            #print(measures["loss_policy"], measures["loss_entropy"],)
+            #print(measures["action_scale_avg"],measures["action_scale_avg"])
 
             # Optimize joint batch loss
             o_step = 10
