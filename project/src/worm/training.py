@@ -7,6 +7,7 @@ from uuid import uuid4
 from collections import defaultdict
 from pathlib import Path
 import itertools
+import numpy as np
 import torch
 
 
@@ -19,7 +20,7 @@ from .domain import WormDomain
 import mlflow
 
 DEFAULT_EPISODES = 5000
-DEFAULT_SAVE_INTERVAL = 1000
+DEFAULT_SAVE_FROM_EPISODE = 0
 DEFAULT_RESULT_DIR = "debug"
 
 class AgentRunner(Runner):
@@ -27,7 +28,7 @@ class AgentRunner(Runner):
     @staticmethod
     def add_parse_args(parser):
       parser.add_argument('-n','--episodes', type=int, default=DEFAULT_EPISODES, help='training episodes')
-      parser.add_argument('-s','--save_interval', type=int, default=DEFAULT_SAVE_INTERVAL, help='every x the agent state is safed to disk')
+      parser.add_argument('-s','--save_from_episode', type=int, default=DEFAULT_SAVE_FROM_EPISODE, help='every x the agent state is safed to disk')
       parser.add_argument('-r', '--result_dir', type=str, default=DEFAULT_RESULT_DIR, help='result directory')
       parser.add_argument('-c', '--continue_training', default=False, action='store_true')
       parser.add_argument('-sd', '--state_dict', type=str, default=None,)
@@ -36,11 +37,11 @@ class AgentRunner(Runner):
     def __init__(self,
         episodes=DEFAULT_EPISODES,
         result_dir = DEFAULT_RESULT_DIR,
-        save_interval = DEFAULT_SAVE_INTERVAL,
+        save_from_episode = DEFAULT_SAVE_FROM_EPISODE,
         **kwargs):
         super().__init__()
         self.training_episodes = episodes
-        self.save_interval = save_interval
+        self.save_from_episode = save_from_episode
         self.result_dir = Path(result_dir)
         self.result_dir.mkdir(parents=True, exist_ok=True)
 
@@ -133,14 +134,20 @@ class AgentRunner(Runner):
             print("Saved agent state.")
 
 
+        rewards = []
+        best_avg_reward = 0
         """Training"""
         for i in range(start_episode, self.training_episodes):
              measures = self.train_episode(domain, env, agent, nr_episode=i)
-             results.append(measures)
+             avg_reward = np.mean(rewards[-100:])
+             measures["avg_reward"] = avg_reward
+             if avg_reward > best_avg_reward:
+                 best_avg_reward = avg_reward
+                 print(f"Yay, new best average: {best_avg_reward}")
+                 if i >= self.save_from_episode:
+                    save_agent_state(i,results)
              mlflow.log_metrics(measures, step=i)
-             if (i+1)% self.save_interval == 0:
-                 save_agent_state(i, results)
-
-        save_agent_state(i, results)
+             results.append(measures)
+             rewards.append(measures["reward"])
         env.close()
         return self.group_measures_by_keys(results)
