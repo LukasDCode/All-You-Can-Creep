@@ -56,7 +56,10 @@ class AgentRunner(Runner):
             # 1. Select action according to policy
             action = agent.policy(state)
             # 2. Execute selected action
-            next_state, reward, done, _ = env.step(action) # _ = decision_steps but are not used here
+            try:
+                next_state, reward, done, _ = env.step(action) # _ = decision_steps but are not used here
+            except Exception as e:
+                raise Exception(f"Stepping env failed:\nstate:{state}\naction:{action}") from e
             # 3. Integrate new experience into agent
             measures_dict = agent.update(nr_episode, state, action, reward, next_state, done)
             # 4 step through
