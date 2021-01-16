@@ -139,6 +139,7 @@ class AgentRunner(Runner):
         """Training"""
         for i in range(start_episode, self.training_episodes):
              measures = self.train_episode(domain, env, agent, nr_episode=i)
+             rewards.append(measures["reward"])
              avg_reward = np.mean(rewards[-100:])
              measures["avg_reward"] = avg_reward
              if avg_reward > best_avg_reward:
@@ -148,6 +149,5 @@ class AgentRunner(Runner):
                     save_agent_state(i,results)
              mlflow.log_metrics(measures, step=i)
              results.append(measures)
-             rewards.append(measures["reward"])
         env.close()
         return self.group_measures_by_keys(results)
