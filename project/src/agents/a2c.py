@@ -162,9 +162,12 @@ class A2CLearner(Agent):
         gamma=DEFAULT_GAMMA, alpha=DEFAULT_ALPHA, entropy_beta=DEFAULT_ENTROPY, entropy_fall=DEFAULT_ENTROPY_FALL, batch_size=DEFAULT_BATCH_SIZE, # hyper params
         advantage=DEFAULT_ADVANTAGE, network=DEFAULT_NET, # agent config
         only_model=False, state_dict = None, # Loading model
+        scale_min=0.05, scale_max=1,
         **kwargs,
         ):
         super().__init__(env)
+        self.scale_min = scale_min
+        self.scale_max= scale_max
 
         self.eps = numpy.finfo(numpy.float32).eps.item()
         self.device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda:0")
@@ -233,7 +236,9 @@ class A2CLearner(Agent):
      Predicts the action probabilities.
     """       
     def predict_policy(self, states):
-        return self.a2c_net(states)
+        (action_locs, action_scales), values = self.a2c_net(states)
+        action_scales = action_scales.clamp(min=0.01, max=1)
+        return (action_locs, action_scales), values
         
     """
      Predicts the state values.
@@ -307,33 +312,16 @@ class A2CLearner(Agent):
             normal_distr = torch.distributions.normal.Normal(action_locs, action_scales, )
             entropy_losses = - cur_entropy_beta * normal_distr.entropy().mean(1) * advantages  # Shape [1000,9] -> Shape [1000] 
             policy_losses = - normal_distr.log_prob(actions).mean(1) * advantages # Shape [1000]
-
-            # test loss to make scale loss not rise to high
-            #max_scale_value = max(1, 2 - 1/6000*nr_episode) 
-            max_scale_value = 1  
-            max_scale_tensor = torch.zeros(action_scales.size(), device=self.device) + max_scale_value
-            max_scale_bound_loss = F.mse_loss(action_scales.clamp(min=max_scale_value), max_scale_tensor)
-
-            #min_scale_value = max(0.1, 0.8 -  7/10/6000*nr_episode)
-            #min_scale_tensor = torch.zeros(action_scales.size(), device=self.device) + min_scale_value
-            #min_scale_bound_loss = F.mse_loss(action_scales.clamp(max=min_scale_value), min_scale_tensor)
-
             value_loss = F.mse_loss(state_values, normalized_returns)
-            #value_loss = F.mse_loss(state_values, normalized_returns, reduction="none").mean(1).sum() # Shape [1000,9]
 
-            #print(action_locs)
 
             entropy_loss,  policy_loss, = entropy_losses.sum(), policy_losses.sum(),
-            loss = entropy_loss + value_loss + policy_loss + max_scale_bound_loss #+ min_scale_bound_loss
+            loss = entropy_loss + value_loss + policy_loss
             measures = {
                 "loss": loss.item(),
                 "loss_policy": policy_loss.item() ,
                 "loss_entropy": entropy_loss.item(),
                 "loss_value" : value_loss.item(),
-                #"loss_max_scale_treshold": max_scale_value,
-                "loss_max_scale": max_scale_bound_loss.item(),
-                #"loss_min_scale_threshold": min_scale_value,
-                #"loss_min_scale": min_scale_bound_loss.item(),
                 "advantages_std" : advantages.std().item(),
                 "action_loc_std": action_locs.std().item(),
                 "action_scale_avg": action_scales.mean().item(),
