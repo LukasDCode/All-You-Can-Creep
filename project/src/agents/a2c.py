@@ -111,6 +111,8 @@ DEFAULT_GAMMA = 0.999
 DEFAULT_ENTROPY = 1e-4
 DEFAULT_ENTROPY_FALL = 0.999
 DEFAULT_BATCH_SIZE = 10
+DEFAULT_SCALE_CLAMP_MIN = 0.01
+DEFAULT_SCALE_CLAMP_MAX = 1
 
 DEFAULT_NET = "multihead"
 DEFAULT_ADVANTAGE = "a2c"
@@ -132,6 +134,8 @@ class A2CLearner(Agent):
             "entropy_beta": {"min": 1e-6, "max": 1},
             "entropy_fall": {"min": 0.99, "max": 1},
             "batch_size": {"min": 10, "max": 10},
+            "scale_clamp_min": {"min": 0.01, "max": 0.01},
+            "scale_clamp_max": {"min": 1, "max": 1},
         }
 
     @staticmethod
@@ -141,6 +145,8 @@ class A2CLearner(Agent):
         parser.add_argument('-e', '--entropy_beta', type=float, default=DEFAULT_ENTROPY, help='the exploitation rate')
         parser.add_argument('-ef', '--entropy_fall', type=float, default=DEFAULT_ENTROPY_FALL, help='the entropy decay')
         parser.add_argument('-b', '--batch_size', type=int, default=DEFAULT_BATCH_SIZE, help='the batch size')
+        parser.add_argument('-cmin', '--scale_clamp_min', type=int, default=DEFAULT_SCALE_CLAMP_MIN, help='the minimum of the action scale clamp')
+        parser.add_argument('-cmax', '--scale_clamp_max', type=int, default=DEFAULT_SCALE_CLAMP_MAX, help='the maximum of the action scale clamp')
         return parser
 
     @staticmethod
@@ -159,7 +165,7 @@ class A2CLearner(Agent):
     def __init__(
         self,
         env,
-        gamma=DEFAULT_GAMMA, alpha=DEFAULT_ALPHA, entropy_beta=DEFAULT_ENTROPY, entropy_fall=DEFAULT_ENTROPY_FALL, batch_size=DEFAULT_BATCH_SIZE, # hyper params
+        gamma=DEFAULT_GAMMA, alpha=DEFAULT_ALPHA, entropy_beta=DEFAULT_ENTROPY, entropy_fall=DEFAULT_ENTROPY_FALL, batch_size=DEFAULT_BATCH_SIZE, scale_clamp_min=DEFAULT_SCALE_CLAMP_MIN, scale_clamp_max=DEFAULT_SCALE_CLAMP_MAX,  # hyper params
         advantage=DEFAULT_ADVANTAGE, network=DEFAULT_NET, # agent config
         only_model=False, state_dict = None, # Loading model
         scale_min=0.05, scale_max=1,
@@ -181,6 +187,8 @@ class A2CLearner(Agent):
             "entropy_beta":entropy_beta,
             "entropy_fall": entropy_fall,
             "batch_size": batch_size,
+            "scale_clamp_min": scale_clamp_min,
+            "scale_clamp_max": scale_clamp_max,
             "network": network,
             "advantage": advantage,
         }
@@ -237,7 +245,7 @@ class A2CLearner(Agent):
     """       
     def predict_policy(self, states):
         (action_locs, action_scales), values = self.a2c_net(states)
-        action_scales = action_scales.clamp(min=0.01, max=1)
+        action_scales = action_scales.clamp(min=self.scale_clamp_min, max=self.scale_clamp_min)
         return (action_locs, action_scales), values
         
     """
