@@ -1,285 +1,256 @@
 import random
 import math
-from types import DynamicClassAttribute
 import mlflow
-import numpy
+import numpy as np
 from numpy.core.fromnumeric import shape, std
 import torch
 from torch._C import device
 import torch.nn as nn
 import torch.nn.functional as F
+from argparse import ArgumentParser
+import mlflow
 
 from .agent import Agent
-from .advantages import temporal_difference, advantage_actor_critic, reinforce, nstep
 
-class A2CNet(nn.Module):
-    def __init__(self, nr_input_features, nr_actions):
-        super(A2CNet, self).__init__()
-        nr_hidden_units = 64
-        self.fc_net = nn.Sequential(
+class PPOMemory:
+    """
+    Batch Container.
+    """
+
+    def __init__(self, batch_size):
+        self.experiences = []
+        self.batch_size = batch_size
+
+    def store_memory(self, *elements):
+        self.experiences.append(tuple(elements))
+
+    def clear_memory(self):
+        self.experiences = []
+
+
+class ActorNet(nn.Module):
+    """
+    Actor NN.
+    """
+    
+    def __init__(self, nr_input_features, nr_actions, nr_hidden_units = 256):
+        super().__init__()
+        self.policy_base_net = nn.Sequential(
             nn.Linear(nr_input_features, nr_hidden_units),
             nn.ReLU(),
             nn.Linear(nr_hidden_units, nr_hidden_units),
             nn.ReLU()
         )
-        self.action_head_loc = nn.Sequential( # Actor LOC-Ausgabe von Policy
+        self.action_head_loc = nn.Sequential( # Actor LOC-Ausgabe
             nn.Linear(nr_hidden_units, nr_actions),
             nn.Tanh(),
         )
-        self.value_head = nn.Linear(nr_hidden_units, 1) # Critic = Value-Function NN
+        self.action_head_scale = nn.Sequential( # Actor SCALE-Ausgabe
+            nn.Linear(nr_hidden_units, nr_actions),
+            nn.Softplus(),
+        ) #
 
-    def forward(self, x):
-        x = self.fc_net(x)
-        # x = x.view(x.size(0), -1) # reshapes the tensor
-        return self.action_head_loc(x),  self.value_head(x)
+    def forward(self, states):
+        x = self.policy_base_net(states)
+        locs = self.action_head_loc(x)
+        scales = self.action_head_scale(x)
+        scales.clamp(min=0.01, max=1)
+        return torch.distributions.normal.Normal(locs, scales)
+    
+class CriticNet(nn.Module):
+    """
+    Critic NN.
+    """
 
-    # save with  torch.save(model.state_dict(), path)
-    def state_dict(self):
-        state_dict = {
-            "fc_net": self.fc_net.state_dict(),
-            "action_head_loc": self.action_head_loc.state_dict(),
-            "value_head": self.value_head.state_dict(),
+    def __init__(self, nr_input_features, nr_hidden_units = 256):
+        super().__init__()
+        self.critic_net = nn.Sequential(
+            nn.Linear(nr_input_features, nr_hidden_units),
+            nn.ReLU(),
+            nn.Linear(nr_hidden_units, nr_hidden_units),
+            nn.ReLU(),
+            nn.Linear(nr_hidden_units, 1),
+        )
+
+    def forward(self, states):
+        x = self.critic_net(states)
+        return x  
+    
+def parameters(actor: nn.Module,critic : nn.Module):
+    {**actor.parameters(), **critic.parameters()}
+
+
+DEFAULT_BATCH_SIZE = 2024
+DEFAULT_BUFFER_SIZE = 20240
+DEFAULT_ALPHA = 0.0003
+DEFAULT_BETA = 0.005
+DEFAULT_EPSILON_CLIP = 0.02
+DEFAULT_LAMBDA = 0.95
+DEFAULT_EPOCH = 3
+DEFAULT_GAMMA = 0.995
+DEFAULT_HIDDEN_NEURONS = 512
+
+class PPOLearner(Agent):
+    """
+    Base class of an autonomously acting and learning agent.
+    """
+
+    """ Returns list of tuples (name, min, max)"""
+    @staticmethod
+    def hyper_params():
+        return {
+            "epsilon_clip": {"min": 0.2, "max": 0.2},
+            "name": {"min": 0, "max": 1},
+            "lambd": {"min": 0.95, "max": 0.95},
         }
-        return state_dict
-
-    # load with model.load_state_dict(torch.load(path))
-    def load_state_dict(self, state_dict, strict=False):
-        self.fc_net.load_state_dict(state_dict["fc_net"], strict=strict,)
-        self.action_head_loc.load_state_dict(state_dict["action_head_loc"],)
-        self.value_head.load_state_dict(state_dict["value_head"], strict=strict, )
-        return self
-
-
-
-DEFAULT_ALPHA = 0.001
-DEFAULT_GAMMA = 0.999
-DEFAULT_SCALE_INIT = 0.9 
-DEFAULT_SCALE_FALLOFF= 0.999
-
-DEFAULT_NET = "multihead"
-DEFAULT_ADVANTAGE = "a2c"
-
-"""
- Autonomous agent using Synchronous Actor-Critic.
-"""
-class PPO(Agent):
 
     @staticmethod
     def agent_name():
         return "ppo"
-
+    
     @staticmethod
-    def hyper_params():
-        return {
-            "alpha": {"min": 0.001, "max": 0.001},
-            "gamma": {"min": 0.99, "max": 1.},
-            "scale_init": {"min": 0.1, "max": 10},
-            "scale_falloff": { "min": 0.9, "max": 1},
-        }
-
-    @staticmethod
-    def add_hyper_param_args(parser):
-        parser.add_argument('-a','--alpha', type=float, default=DEFAULT_ALPHA, help='the learning rate')
-        parser.add_argument('-g','--gamma', type=float, default=DEFAULT_GAMMA , help='the discount factor for rewards')
-        parser.add_argument('-si', '--scale_init', type=float, default=DEFAULT_SCALE_INIT, help='the scale at start')
-        parser.add_argument('-sf', '--scale_falloff', type=float, default=DEFAULT_SCALE_FALLOFF, help='the scale decay')
-        return parser
-
+    def add_hyper_param_args(parser: ArgumentParser):
+        parser.add_argument("-bs", "--batch_size", type=int, default=2024)
+        parser.add_argument("-buffs", "--buffer_size", type=int, default=20240)
+        parser.add_argument("-a", "--alpha", type=float, default=0.0003, help="Learning rate")
+        parser.add_argument("-b", "--beta", type=float, default=0.005,)
+        parser.add_argument("-e", "--epsilon_clip", type=float, default=0.02,)
+        parser.add_argument("-l", "--lambd", type=float, default=0.95,)
+        parser.add_argument("-epoch", "--epoch", type=int, default=3,)
+        parser.add_argument("-g", "--gamma", type=float, default=0.995,)
+        parser.add_argument("-hn", "--hidden_neurons", type=int, default=512)
+    
     @staticmethod
     def add_config_args(parser):
-        parser.add_argument('-adv', '--advantage', type=str, default=DEFAULT_ADVANTAGE, choices=["a2c", "td", "3step", "reinforce"])
         return parser
 
-    def state_dict(self):
-        return {
-            "model": self.a2c_net.state_dict(),
-            "config":  self.config,
-            "state": {k: self.__dict__.get(k) for k in self.config}
-        }
-
-    def __init__(
-        self,
-        env,
-        gamma=DEFAULT_GAMMA, alpha=DEFAULT_ALPHA, scale_init=DEFAULT_SCALE_INIT, scale_falloff=DEFAULT_SCALE_FALLOFF,
-        advantage=DEFAULT_ADVANTAGE, 
-        only_model=False, state_dict = None, # Loading model
-        **kwargs,
+    def __init__(self,
+            env, 
+            batch_size=DEFAULT_BATCH_SIZE,
+            buffer_size=DEFAULT_BUFFER_SIZE,
+            alpha=DEFAULT_ALPHA,
+            beta=DEFAULT_BETA,
+            epsilon_clip=DEFAULT_EPSILON_CLIP,
+            lambd=DEFAULT_LAMBDA,
+            epoch=DEFAULT_EPOCH,
+            gamma=DEFAULT_GAMMA,
+            hidden_neurons=DEFAULT_HIDDEN_NEURONS,
+            **kwargs,
         ):
         super().__init__(env)
-
-        self.eps = numpy.finfo(numpy.float32).eps.item()
-        self.device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda:0")
-        if state_dict:
-            state_dict = state_dict["agent"]
-
-        """Params from constructor"""
-        self.config = {
-            "gamma":gamma,
-            "alpha":alpha,
-            "scale_init": scale_init,
-            "scale_falloff": scale_falloff,
-            "advantage": advantage,
+        params = {
+            "batch_size" : batch_size,
+            "buffer_size" : buffer_size,
+            "alpha" : alpha,
+            "beta" : beta,
+            "epsilon_clip" : epsilon_clip,
+            "lambd" : lambd,
+            "epoch" : epoch,
+            "gamma" : gamma,
+            "hidden_neurons" : hidden_neurons,
         }
+        self.__dict__.update(params)
+        mlflow.log_params(params)
 
-        """On full state loading override initial params"""
-        if not only_model and state_dict:
-            print("Loading initial params from state dict...")
-            self.config.update(state_dict["config"])
-            print("Loaded initial params from state dict.")
-        self.__dict__.update(self.config)
+        self.device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda")
+        self.actor = ActorNet(self.nr_input_features, self.nr_actions).to(self.device)
+        self.critic = CriticNet(self.nr_input_features).to(self.device)
+        self.memory = PPOMemory(batch_size)
 
-        self.cur_scale = scale_init
-        """On full state loading override param state"""
-        if not only_model and state_dict:
-            print("Loaded state params from state dict.")
-            self.__dict__.update(state_dict["state"])
-            print("Loaded state params from state dict.")
+        self.optimizer_crit = torch.optim.Adam(self.critic.parameters(), lr=self.alpha)
+        self.optimizer_act = torch.optim.Adam(self.actor.parameters(), lr=self.alpha)
 
-        """Create network"""
-        self.a2c_net = A2CNet(self.nr_input_features, self.nr_actions).to(self.device)
-
-        """Load state dict into model"""
-        if state_dict:
-            print("Loading model...")
-            self.a2c_net.load_state_dict(state_dict["model"])
-            print("Loaded model.")
-
-        self.optimizer = torch.optim.Adam(self.a2c_net.parameters(), lr=self.alpha)
-        self.transitions = []
-
-        """Log Params"""
-        print(f"Loaded A2CLearner {str(self.config)}")
-        mlflow.log_params({
-            "agent": "a2c",
-            **self.config,
-        })
-
-    """
-     Samples a new action using the policy network.
-    """
     def policy(self, state):
-        action_locs, _ = self.predict_policy(
-            torch.tensor([state], device=self.device, dtype=torch.float)
-        )
-        cur_scales = torch.zeros(self.nr_actions, device=self.device, dtype=torch.float) + self.cur_scale
-        #print(cur_scales)
-        # print("Actions {} {}".format( action_locs, action_scales))
-        m = torch.distributions.normal.Normal(action_locs, cur_scales)
-        action = m.sample().detach() # Size([1,9])
-        return action.cpu().numpy()
+        """Behavioral strategy of the agent. Maps state to action."""
+        states = torch.tensor([state], dtype=torch.float, device=self.device)
+        actions, _ = self.predict_policy(states)
+        return actions[0].detach().clone().numpy()
 
-
-    """
-     Predicts the action probabilities.
-    """       
     def predict_policy(self, states):
-        return self.a2c_net(states)
-        
-    """
-     Predicts the state values.
-    """       
-    def predict_value(self, states):
-        states = torch.tensor(states, device=self.device, dtype=torch.float)
-        return self.value_net(states)
+        """Behavioral strategy of the agent. Maps states to actions, log_probs."""
+        distributions = self.actor(states)
+        actions = distributions.sample().squeeze(1) # this could be a bug
+        actions = actions.detach()
+        log_probs = distributions.log_prob(actions)
+        return actions, log_probs
 
-    def _normalized_returns(self, rewards):
-        # Calculate and normalize discounted returns
+    def _compute_advantage(self, rewards, state_values, next_state_values):
+        #next_state_values = [*state_values[1::], 0.]# may fail :)
+        list_of_tuples = list(zip(rewards, state_values, next_state_values))
+        advantages, A = [], 0
+        for reward, state_value, next_state_value, in reversed(list_of_tuples):  #this could be a bug (bsc 2021) - last next_state_value has to be 0
+            A = reward + self.gamma * next_state_value - state_value + self.gamma * self.lambd * A
+            advantages.append(A)
+        advantages.reverse()
+        return advantages
 
-        discounted_returns = []
-        R = 0
-        for reward in reversed(rewards):
-            R = reward + self.gamma*R
-            discounted_returns.append(R)
-        discounted_returns.reverse()
+    def generate_batches(self, *tensors):
+        memory_len = len(tensors[0])
+        batch_starts = np.arange(0, memory_len, self.batch_size, dtype=np.int64)
+        np.random.shuffle(batch_starts)
+        # for each batch, create slice for each given tensor and store them as tuple of tensor slices in a list
+        batches = [tuple((t[i:i + self.batch_size] for t in tensors)) for i in batch_starts]
+        return batches
 
-        discounted_returns = torch.tensor(discounted_returns, device=self.device, dtype=torch.float).detach()
-        #print("shape", discounted_returns.size())
+    def update(self,nr_episode, state, action, reward, next_state, done):
+        """
+        Learning method of the agent. Integrates experience into
+        the agent's current knowledge.
+        """
 
-        #normalized_returns = F.normalize(discounted_returns, dim=0, eps=self.eps)
-        #print("n1 : " , normalized_returns)
-
-        normalized_returns = (discounted_returns - discounted_returns.mean())
-        normalized_returns /= (discounted_returns.std() + self.eps)
-        #print("n2 : " , normalized_returns)
-
-        return normalized_returns
-
-    """
-     Performs a learning update of the currently learned policy and value function.
-    """
-    def update(self, nr_episode, state, action, reward, next_state, done):
-        self.transitions.append((state, action, reward, next_state, done))
-        # 64 Werte fuer state, 9 Werte fuer action, 1 Wert fuer reward, 64 Werte fuer next_state, 1 boolean fuer done
-
-        if done:
-            states, actions, rewards, next_states, dones = tuple(zip(*self.transitions))
-
-            action_scales = torch.zeros(len(states), self.nr_actions, device=self.device, dtype=torch.float) + self.cur_scale
-            normalized_returns = self._normalized_returns(rewards)                          # Shape([1000])
-            rewards = torch.tensor(rewards, device=self.device, dtype=torch.float)          # Shape([1000])
-            actions = torch.tensor(actions, device=self.device, dtype=torch.float)          # Shape([1000,1,9])
-            actions = actions.squeeze(1) # remove n worms dim                               # Shape([1000,9])
-            states = torch.tensor(states, device=self.device, dtype=torch.float)            # Shape[1000,64]
-            next_states = torch.tensor(next_states, device=self.device, dtype=torch.float)  # Shape[1000,64]
-
-            action_locs, state_values = self.predict_policy(states)        # Shape[1000,9], Shape[1000,9], Shape[1000,1]
-            state_values = state_values.squeeze(1)                                          # Shape[1000]
-            _, next_state_values = self.predict_policy(next_states)                         # Shape[1000,1]
-            next_state_values = next_state_values.squeeze(1)                                # Shape[1000]
-
-            if self.advantage == "a2c":
-                advantages = advantage_actor_critic(Rs=normalized_returns,values=state_values,)
-            elif self.advantage == "3step":
-                advantages = nstep(
-                    n=3,
-                    gamma=self.gamma,
-                    rewards=rewards,
-                    values=state_values,
-                    next_values=next_state_values,
-                )
-            elif self.advantage == "td":
-                advantages = temporal_difference(
-                    gamma=self.gamma,
-                    rewards=rewards,
-                    values=state_values,
-                    next_values=next_state_values,
-                )
-            elif self.advantage == "reinforce":
-                advantages = reinforce(Rs=normalized_returns,)
-            else:
-                raise RuntimeError()
-
-            advantages = advantages # Shape[1000]
-            normal_distr = torch.distributions.normal.Normal(action_locs, action_scales, )
-            policy_losses = - normal_distr.log_prob(actions).mean(1) * advantages # Shape [1000]
-
-            value_loss = F.mse_loss(state_values, normalized_returns)
-            #value_loss = F.mse_loss(state_values, normalized_returns, reduction="none").mean(1).sum() # Shape [1000,9]
-
-            #print(action_locs)
-
-            policy_loss, =  policy_losses.sum(),
-            loss =  value_loss + policy_loss
-            measures = {
-                "loss": loss.detach().cpu().item(),
-                "loss_policy": policy_loss.detach().cpu().item() ,
-                "loss_value" : value_loss.detach().cpu().item(),
-                "advantages_avg" : float(advantages.detach().cpu().numpy().mean()),
-                "action_scale_avg": float(action_scales.detach().cpu().mean().numpy().mean()),
-            }
-
-            # Optimize joint batch loss
-            o_step = 10
-            if nr_episode % o_step: # reset grad at 0, 10, 20...
-                self.optimizer.zero_grad()
-            loss.backward()
-            if (nr_episode + 1) % o_step: # step grad at 9,19,29... 
-                self.optimizer.step()
+        # store experience
+        if not done:
+            self.memory.store_memory(reward, state, next_state, action)
+            return {}
+      
+        for _ in range(self.epoch):
             
-            # Don't forget to delete all experiences afterwards! This is an on-policy algorithm.
-            self.transitions.clear()
-            self.cur_scale -= self.scale_falloff
+            # update NNs
+            rewards, states, next_states, actions = zip(*self.memory.experiences)
+            # convert to tensor
+            rewards = torch.tensor(rewards, dtype=torch.float, device=self.device)
+            states = torch.tensor(states, dtype=torch.float, device=self.device)
+            next_states = torch.tensor(next_states, dtype=torch.float, device=self.device)
+            actions = torch.tensor(actions, dtype=torch.float, device=self.device)
 
-            return measures
+            # Remove old policy values from gradient graph
+            state_values = self.critic(states).detach() 
+            next_state_values = self.critic(next_states).detach() 
+            _, old_log_probs = self.predict_policy(states) 
+            old_log_probs = old_log_probs.detach() #ditto
 
+            # compute advantages
+            advantages = torch.stack(self._compute_advantage(rewards, state_values, next_state_values))
+
+            for b_states, b_state_values, b_actions, b_old_log_probs, b_advantages \
+                in self.generate_batches(states, state_values, actions, old_log_probs, advantages):
+
+                _ , b_new_log_probs = self.predict_policy(b_states)
+                b_new_state_values = self.critic(b_states)
+
+                # batch actor loss
+                prob_ratio = b_new_log_probs.exp() / b_old_log_probs.exp()
+                prob_ratio_weighted = prob_ratio *b_advantages
+                prob_ratio_weighted_clipped = prob_ratio.clamp(min=1-self.epsilon_clip, max=self.epsilon_clip) * b_advantages
+                b_actor_loss = -torch.min(prob_ratio_weighted, prob_ratio_weighted_clipped).mean()
+
+                # batch critic loss
+                b_returns = b_advantages + b_state_values
+                b_critic_loss = F.mse_loss(b_returns, b_new_state_values)
+
+                b_loss = b_actor_loss + 0.5*b_critic_loss
+
+                self.optimizer_act.zero_grad()
+                self.optimizer_crit.zero_grad()
+                b_loss.backward()
+                self.optimizer_act.step()
+                self.optimizer_crit.step()
+
+        self.memory.clear_memory()
         return {}
+
+    def state_dict(self):
+        return {}
+
+    def load_state_dict(self, state_dict, only_model, strict=False):
+        pass
