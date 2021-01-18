@@ -4,7 +4,7 @@ from matplotlib.pyplot import title
 from ..exec.executor import Executor
 from ..agents.a2c import A2CLearner
 from ..agents.randomagent import RandomAgent
-from ..agents.ppo import PPO
+from ..agents.ppo import PPOLearner
 from .training import AgentRunner
 
 def create_parser():
@@ -22,8 +22,8 @@ def create_parser():
   ppo_parser = subparser.add_parser("ppo")
   AgentRunner.add_parse_args(ppo_parser)
   Executor.add_parser_args(ppo_parser)
-  PPO.add_hyper_param_args(ppo_parser)
-  PPO.add_config_args(ppo_parser)
+  PPOLearner.add_hyper_param_args(ppo_parser)
+  PPOLearner.add_config_args(ppo_parser)
   WormDomain.add_parse_args(ppo_parser)
 
 
@@ -46,7 +46,7 @@ def main():
   elif config.agent == "rand":
     agent_class=RandomAgent
   elif config.agent == "ppo":
-    agent_class=PPO
+    agent_class=PPOLearner
   else:
     parser.error("no valid agent")
     return

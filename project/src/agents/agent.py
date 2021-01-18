@@ -1,11 +1,11 @@
-"""
- Base class of an autonomously acting and learning agent.
-"""
 class Agent:
+    """
+    Base class of an autonomously acting and learning agent.
+    """
 
-    """ Returns list of tuples (name, min, max)"""
     @staticmethod
     def hyper_params():
+        """ Returns list of tuples (name, min, max)"""
         return {
             "name": {"min": 0, "max": 1},
         }
