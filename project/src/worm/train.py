@@ -5,6 +5,7 @@ from ..exec.executor import Executor
 from ..agents.a2c import A2CLearner
 from ..agents.randomagent import RandomAgent
 from ..agents.ppo import PPOLearner
+from ..agents.ppo2 import PPO2Learner
 from .training import AgentRunner
 
 def create_parser():
@@ -25,6 +26,13 @@ def create_parser():
   PPOLearner.add_hyper_param_args(ppo_parser)
   PPOLearner.add_config_args(ppo_parser)
   WormDomain.add_parse_args(ppo_parser)
+
+  ppo2_parser = subparser.add_parser("ppo2")
+  AgentRunner.add_parse_args(ppo2_parser)
+  Executor.add_parser_args(ppo2_parser)
+  PPO2Learner.add_hyper_param_args(ppo2_parser)
+  PPO2Learner.add_config_args(ppo2_parser)
+  WormDomain.add_parse_args(ppo2_parser)
 
 
   random = subparser.add_parser("rand")
@@ -47,6 +55,8 @@ def main():
     agent_class=RandomAgent
   elif config.agent == "ppo":
     agent_class=PPOLearner
+  elif config.agent == "ppo2":
+    agent_class=PPO2Learner
   else:
     parser.error("no valid agent")
     return
