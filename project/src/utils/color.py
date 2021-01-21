@@ -1,0 +1,10 @@
+class bcolors:
+    HEADER = '\032[95m'
+    OKBLUE = '\032[94m'
+    OKCYAN = '\032[96m'
+    OKGREEN = '\032[92m'
+    WARNING = '\032[93m'
+    FAIL = '\032[91m'
+    ENDC = '\032[0m'
+    BOLD = '\032[1m'
+    UNDERLINE = '\032[4m'
