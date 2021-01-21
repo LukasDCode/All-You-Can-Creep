@@ -10,12 +10,12 @@ import itertools
 import numpy as np
 import torch
 
-
 from ..agents.agent import Agent
 from ..agents.a2c import A2CLearner
 from ..agents.randomagent import RandomAgent
 from ..exec.executor import Runner, Executor
 from .domain import WormDomain
+from ..utils.color import bcolors
 
 import mlflow
 
@@ -144,7 +144,7 @@ class AgentRunner(Runner):
              measures["avg_reward"] = avg_reward
              if avg_reward > best_avg_reward:
                  best_avg_reward = avg_reward
-                 print(f"Yay, new best average: {best_avg_reward}")
+                 print(f"{bcolors.FAIL}Yay, new best average: {best_avg_reward}{bcolors.ENDC}")
                  if i >= self.save_from_episode:
                     save_agent_state(i,results)
              mlflow.log_metrics(measures, step=i)
