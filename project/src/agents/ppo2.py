@@ -87,7 +87,7 @@ class ActorNet(nn.Module):
         x = self.policy_base_net(states)
         locs = self.action_head_loc(x)
         scales = self.action_head_scale(x)
-        scales.clamp(min=0.01, max=1) # min clamping could be excluded
+        scales.clamp(max=1) # min clamping is not necessary due to ppo gradient clipping
         return torch.distributions.normal.Normal(locs, scales)
     
 class CriticNet(nn.Module):
@@ -122,7 +122,7 @@ DEFAULT_EPOCH = 3
 DEFAULT_GAMMA = 0.995
 DEFAULT_HIDDEN_NEURONS = 512
 
-class PPOLearner(Agent):
+class PPO2Learner(Agent):
     """
     Base class of an autonomously acting and learning agent.
     """
@@ -138,7 +138,7 @@ class PPOLearner(Agent):
 
     @staticmethod
     def agent_name():
-        return "ppo"
+        return "ppo2"
     
     @staticmethod
     def add_hyper_param_args(parser: ArgumentParser):
@@ -228,8 +228,20 @@ class PPOLearner(Agent):
 
         # store experience
         if not done:
-            vals = self.critic(torch.from_numpy(state))
-            probs = self.actor(torch.from_numpy(state))
+            
+            vals = self.critic(torch.from_numpy(state)).detach().numpy()[0] # --> number
+
+            #action, log_prob = self.predict_policy(torch.from_numpy(state))
+            ##action = action [0]
+            #log_prob = log_prob[0].detach()
+            normal = self.actor(torch.from_numpy(state))
+            action_tensor = normal.sample().squeeze(0) # # --> tensor -- [1,9] -> squeeze -> [9]
+            action = action_tensor.detach().numpy()
+            log_prob = normal.log_prob(action_tensor).detach().numpy() # --> tensor
+            action = action_tensor.detach().numpy()
+
+
+            probs = log_prob
             self.memory.store_memory(state, action, probs, vals, reward, done) 
             # vals is only one value vector = tensor([-0.0590], grad_fn=<AddBackward0>)
             # probs = Normal(loc: torch.Size([2]), scale: torch.Size([2]))
@@ -254,69 +266,53 @@ class PPOLearner(Agent):
                 advantage[t] = a_t
 
             advantage = torch.tensor(advantage).to(self.actor.device)
-            # values = torch.tensor(values).to(self.actor.device)
+            values = torch.tensor(values).to(self.actor.device)
 
             for batch in batches:
                 states = torch.tensor(state_arr[batch], dtype=torch.float).to(self.actor.device)
-                #old_probs = torch.tensor(old_prob_arr[batch]).to(self.actor.device)
+                old_probs = torch.tensor(old_prob_arr[batch]).to(self.actor.device)
                 actions = torch.tensor(action_arr[batch]).to(self.actor.device)
+
+
+                dist = self.actor(states)
+                critic_value = self.critic(states)
+
+                critic_value = torch.squeeze(critic_value)
+
+                new_probs = dist.log_prob(actions)
+                prob_ratio = new_probs.exp() / old_probs.exp()
+                #prob_ratio = (new_probs - old_probs).exp()
+
+                weighted_probs = advantage[batch] * prob_ratio[..., None] # broadcasting over dimensions of tensor
+                # weighted_probs = torch.multiply(prob_ratio, advantage[batch])
+
+                clamped_prob_ratio = torch.clamp(prob_ratio, 1-self.epsilon_clip, 1+self.epsilon_clip)
+                weighted_clipped_probs = clamped_prob_ratio[..., None] * advantage[batch]
+
+                # weighted_clipped_probs = torch.clamp(prob_ratio, 1-self.epsilon_clip,
+                #        1+self.epsilon_clip)*advantage[batch]
+                actor_loss = -torch.min(weighted_probs, weighted_clipped_probs).mean()
+
+                returns = advantage[batch] + values[batch]
+                critic_loss = (returns-critic_value)**2
+                critic_loss = critic_loss.mean()
+
+
+
+                total_loss = actor_loss + 0.5*critic_loss
+
+
+
 
                 self.actor.optimizer.zero_grad()
                 self.critic.optimizer.zero_grad()
-                #total_loss.backward()
+                total_loss.backward()
                 self.actor.optimizer.step()
                 self.critic.optimizer.step()
 
 
         self.memory.clear_memory()    
         return {}
-
-        '''
-            # update NNs
-            #rewards, states, next_states, actions = zip(*self.memory.experiences)
-
-            # convert to tensor
-            rewards = torch.tensor(rewards, dtype=torch.float).to(self.actor.device)
-            states = torch.tensor(states, dtype=torch.float).to(self.actor.device)
-            next_states = torch.tensor(next_states, dtype=torch.float).to(self.actor.device)
-            actions = torch.tensor(actions, dtype=torch.float).to(self.actor.device)
-
-            # Remove old policy values from gradient graph
-            state_values = self.critic(states).detach() 
-            next_state_values = self.critic(next_states).detach() 
-            _, old_log_probs = self.predict_policy(states) 
-            old_log_probs = old_log_probs.detach() #ditto
-
-            # compute advantages
-            advantages = torch.stack(self._compute_advantage(rewards, state_values, next_state_values))
-
-            for b_states, b_state_values, b_actions, b_old_log_probs, b_advantages \
-                in self.generate_batches(states, state_values, actions, old_log_probs, advantages):
-
-                _ , b_new_log_probs = self.predict_policy(b_states)
-                b_new_state_values = self.critic(b_states)
-
-                # batch actor loss
-                prob_ratio = b_new_log_probs.exp() / b_old_log_probs.exp()
-                prob_ratio_weighted = prob_ratio *b_advantages
-                prob_ratio_weighted_clipped = prob_ratio.clamp(min=1-self.epsilon_clip, max=self.epsilon_clip) * b_advantages
-                b_actor_loss = -torch.min(prob_ratio_weighted, prob_ratio_weighted_clipped).mean()
-
-                # batch critic loss
-                b_returns = b_advantages + b_state_values
-                b_critic_loss = F.mse_loss(b_returns, b_new_state_values)
-
-                b_loss = b_actor_loss + 0.5*b_critic_loss
-
-                self.actor.optimizer.zero_grad()
-                self.critic.optimizer.zero_grad()
-                b_loss.backward()
-                self.actor.optimizer.step()
-                self.critic.optimizer.step()
-
-        self.memory.clear_memory()
-        return {}
-        '''
 
     def state_dict(self):
         return {}
