@@ -65,10 +65,10 @@ class EAsimple():
             print(rewards_array)
             rewards_array = rewards_array["reward"]
 
-            winner = max(rewards_array)  # alternativ ginge noch der durchschnittliche reward
+            winner = max(rewards_array)
             stability = self.stability(rewards_array)
             speed = self.convergence_speed(rewards_array)
-            fitness = (speed + (stability * 2) + winner / 4)  # prüfen auf gewichtung, max reward?
+            fitness = (speed + (stability * 2) + winner / 4) 
             fitness_list.append(fitness)
         self.fitness_list = fitness_list
         print("A", fitness_list)
@@ -159,6 +159,6 @@ class EAsimple():
             try:
                 stability.append(rewards_list[k] - rewards_list[k - 1])
             except IndexError:
-                stability.append(rewards_list[k])  # negativ bei abfall, positiv bei steigung
+                stability.append(rewards_list[k])
         AvgStability = sum(rewards_list) / len(rewards_list)
         return AvgStability
