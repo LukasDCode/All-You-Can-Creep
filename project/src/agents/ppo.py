@@ -176,7 +176,7 @@ class PPOLearner(Agent):
     def predict_policy(self, states):
         """Behavioral strategy of the agent. Maps states to actions, log_probs."""
         distributions = self.actor(states)
-        actions = distributions.sample().squeeze(1) # this could be a bug
+        actions = distributions.sample().squeeze(1).clamp(min=-1, max=1)
         actions = actions.detach()
         log_probs = distributions.log_prob(actions)
         return actions, log_probs
