@@ -171,7 +171,7 @@ class PPOLearner(Agent):
         """Behavioral strategy of the agent. Maps state to action."""
         states = torch.tensor([state], dtype=torch.float, device=self.device)
         actions, _ = self.predict_policy(states)
-        return actions[0].detach().clone().numpy()
+        return actions[0].detach().clone().cpu().numpy()
 
     def predict_policy(self, states):
         """Behavioral strategy of the agent. Maps states to actions, log_probs."""
