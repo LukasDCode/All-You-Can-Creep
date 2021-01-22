@@ -135,6 +135,7 @@ class PPOLearner(Agent):
             epoch=DEFAULT_EPOCH,
             gamma=DEFAULT_GAMMA,
             hidden_neurons=DEFAULT_HIDDEN_NEURONS,
+            state_dict=None,
             **kwargs,
         ):
         super().__init__(env)
@@ -156,6 +157,12 @@ class PPOLearner(Agent):
         self.actor = ActorNet(self.nr_input_features, self.nr_actions).to(self.device)
         self.critic = CriticNet(self.nr_input_features).to(self.device)
         self.memory = PPOMemory(batch_size)
+
+        if state_dict:
+          print("Loading model...")
+          self.actor.load_state_dict(state_dict["model-actor"])
+          self.critic.load_state_dict(state_dict["model-critic"])
+          print("Loaded model.")
 
         self.optimizer_crit = torch.optim.Adam(self.critic.parameters(), lr=self.alpha)
         self.optimizer_act = torch.optim.Adam(self.actor.parameters(), lr=self.alpha)
@@ -250,7 +257,8 @@ class PPOLearner(Agent):
         return {}
 
     def state_dict(self):
-        return {}
-
-    def load_state_dict(self, state_dict, only_model, strict=False):
-        pass
+        return {
+          "model-critic": self.critic.state_dict(),
+          "model-actor": self.actor.state_dict(),
+        }
+    
