@@ -56,6 +56,8 @@ class AgentRunner(Runner):
         while not done:
             # 1. Select action according to policy
             action = agent.policy(state)
+            #action = 2 * np.random.random_sample(9) - 1 #randomWorm
+            #action = 2 * np.random.random_sample(2) - 1 #randomBall
             # 2. Execute selected action
             try:
                 next_state, reward, done, _ = env.step(action) # _ = decision_steps but are not used here
