@@ -190,6 +190,15 @@ class PPOLearner(Agent):
             advantages.append(A)
         advantages.reverse()
         return advantages
+    
+    def _compute_returns(self, rewards):
+        discounted_returns = []
+        R = 0
+        for reward in reversed(rewards):
+          R = reward + self.gamma*R 
+        discounted_returns.reverse()
+        discounted_returns = torch.tensor(discounted_returns, device=self.device, dtype=torch.float)
+        return F.normalize(discounted_returns, dim=0)
 
     def generate_batches(self, *tensors):
         memory_len = len(tensors[0])
@@ -215,6 +224,7 @@ class PPOLearner(Agent):
             # update NNs
             rewards, states, next_states, actions = zip(*self.memory.experiences)
             # convert to tensor
+            #returns = self._compute_returns(rewards)
             rewards = torch.tensor(rewards, dtype=torch.float, device=self.device)
             states = torch.tensor(states, dtype=torch.float, device=self.device)
             next_states = torch.tensor(next_states, dtype=torch.float, device=self.device)
@@ -228,6 +238,8 @@ class PPOLearner(Agent):
 
             # compute advantages
             advantages = torch.stack(self._compute_advantage(rewards, state_values, next_state_values))
+            #advantages = F.normalize(advantages, dim=0) # normalize advantage
+
 
             for b_states, b_state_values, b_actions, b_old_log_probs, b_advantages \
                 in self.generate_batches(states, state_values, actions, old_log_probs, advantages):
