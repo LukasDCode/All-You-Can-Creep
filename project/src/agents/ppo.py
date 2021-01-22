@@ -54,7 +54,7 @@ class ActorNet(nn.Module):
         x = self.policy_base_net(states)
         locs = self.action_head_loc(x)
         scales = self.action_head_scale(x)
-        scales.clamp(min=0.01, max=1)
+        scales.clamp(max=1)
         return torch.distributions.normal.Normal(locs, scales)
     
 class CriticNet(nn.Module):
