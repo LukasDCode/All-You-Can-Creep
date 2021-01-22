@@ -8,22 +8,23 @@ class Gridsearch():
 
     def run(self):
         hyperparams = {
-                "alpha":[0.001],
-                "gamma":[0.99, 0.999, 0.995, 0.9999, 0.99995, 0.99999],
-                "entropy_beta":[0.003, 0.001, 0.0005,0.00025, 0.000125],
+                "alpha":[0.001, 0],
+                "gamma":[0.99, 0.995, 0.999],
+                "entropy_beta":[1e-4, 1e-5, 1e-6],
                 "entropy_fall":[1.0001, 1, 0.9999],
                 "advantage": ["a2c", "td", "reinforce"],
-                "batch_size": [10]
+                "batch_size": [10] 
         }
         keys = [*hyperparams.keys()]
         recombinations = product(*[hyperparams[key] for key in keys])
 
         for param_comb in recombinations:
-            params = {key: param_comb[i] for i, key in enumerate(keys)}
-            self.executor.submit_task(
-                agent_class=self.agent_class,
-                **params,
-            )
+            for _ in range(5): 
+                params = {key: param_comb[i] for i, key in enumerate(keys)}
+                self.executor.submit_task(
+                    agent_class=self.agent_class,
+                    **params,
+                )
 
 
 
