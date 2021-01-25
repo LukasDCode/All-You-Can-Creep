@@ -292,8 +292,6 @@ class PPOLearner(Agent):
                 critic_loss_list.append(b_critic_loss)
                 actor_loss_list.append(b_actor_loss)
                 loss_list.append(b_loss)
-                print("b_loss")
-                print(b_loss)
                 
                 self.optimizer_act.zero_grad()
                 self.optimizer_crit.zero_grad()
