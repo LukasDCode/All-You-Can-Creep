@@ -32,18 +32,21 @@ class AgentRunner(Runner):
       parser.add_argument('-r', '--result_dir', type=str, default=DEFAULT_RESULT_DIR, help='result directory')
       parser.add_argument('-c', '--continue_training', default=False, action='store_true')
       parser.add_argument('-sd', '--state_dict', type=str, default=None,)
+      parser.add_argument('-u', '--upload_state_dicts', default=False, action='store_true')
       return parser
 
     def __init__(self,
         episodes=DEFAULT_EPISODES,
         result_dir = DEFAULT_RESULT_DIR,
         save_from_episode = DEFAULT_SAVE_FROM_EPISODE,
+        upload_state_dicts = False,
         **kwargs):
         super().__init__()
         self.training_episodes = episodes
         self.save_from_episode = save_from_episode
         self.result_dir = Path(result_dir)
         self.result_dir.mkdir(parents=True, exist_ok=True)
+        self.upload_state_dicts = upload_state_dicts
 
     @staticmethod
     def train_episode(domain, env, agent, nr_episode=0):
@@ -134,6 +137,10 @@ class AgentRunner(Runner):
                 }
             }, save_path)
             print("Saved agent state.")
+            if self.upload_state_dicts:
+              print("Uploading agent state...")
+              mlflow.log_artifact(str(save_path))
+              print("Uploaded agent state.")
 
 
         rewards = []
