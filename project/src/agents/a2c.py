@@ -112,7 +112,7 @@ DEFAULT_ENTROPY = 1e-4
 DEFAULT_ENTROPY_FALL = 0.999
 DEFAULT_BATCH_SIZE = 10
 DEFAULT_SCALE_CLAMP_MIN = 0.01
-DEFAULT_SCALE_CLAMP_MAX = 1
+DEFAULT_SCALE_CLAMP_MAX = 1.
 
 DEFAULT_NET = "multihead"
 DEFAULT_ADVANTAGE = "a2c"
@@ -168,13 +168,9 @@ class A2CLearner(Agent):
         gamma=DEFAULT_GAMMA, alpha=DEFAULT_ALPHA, entropy_beta=DEFAULT_ENTROPY, entropy_fall=DEFAULT_ENTROPY_FALL, batch_size=DEFAULT_BATCH_SIZE, scale_clamp_min=DEFAULT_SCALE_CLAMP_MIN, scale_clamp_max=DEFAULT_SCALE_CLAMP_MAX,  # hyper params
         advantage=DEFAULT_ADVANTAGE, network=DEFAULT_NET, # agent config
         only_model=False, state_dict = None, # Loading model
-        scale_min=0.05, scale_max=1,
         **kwargs,
         ):
         super().__init__(env)
-        self.scale_min = scale_min
-        self.scale_max= scale_max
-
         self.eps = numpy.finfo(numpy.float32).eps.item()
         self.device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda:0")
         if state_dict:
@@ -245,7 +241,7 @@ class A2CLearner(Agent):
     """       
     def predict_policy(self, states):
         (action_locs, action_scales), values = self.a2c_net(states)
-        action_scales = action_scales.clamp(min=self.scale_clamp_min, max=self.scale_clamp_min)
+        action_scales = action_scales.clamp(min=self.scale_clamp_min, max=self.scale_clamp_max)
         return (action_locs, action_scales), values
         
     """
