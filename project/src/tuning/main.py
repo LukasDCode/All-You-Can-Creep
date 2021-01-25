@@ -13,7 +13,8 @@ def parse_config():
     Executor.add_parser_args(parser)
     AgentRunner.add_parse_args(parser)
     A2CLearner.add_config_args(parser)
-    parser.add_argument('-variant', '--variant', required=False, type=str, choices=["evolution", "gridsearch"], default="evolution",
+    A2CLearner.add_hyper_param_args(parser)
+    parser.add_argument('-variant', '--variant', required=False, type=str, choices=["evolution", "gridsearch"], default="gridsearch",
                         help="choice of tuningvariant")
     return parser.parse_args()
 
@@ -44,6 +45,7 @@ def main():
             gridsearch = Gridsearch(
                 executor=executor,
                 agent_class=A2CLearner,
+                **kwargs,
             )
             gridsearch.run()
 
