@@ -165,9 +165,14 @@ class A2CLearner(Agent):
     def __init__(
         self,
         env,
-        gamma=DEFAULT_GAMMA, alpha=DEFAULT_ALPHA, entropy_beta=DEFAULT_ENTROPY, entropy_fall=DEFAULT_ENTROPY_FALL, batch_size=DEFAULT_BATCH_SIZE, scale_clamp_min=DEFAULT_SCALE_CLAMP_MIN, scale_clamp_max=DEFAULT_SCALE_CLAMP_MAX,  # hyper params
-        advantage=DEFAULT_ADVANTAGE, network=DEFAULT_NET, # agent config
-        only_model=False, state_dict = None, # Loading model
+        # hyper params
+        gamma=DEFAULT_GAMMA, alpha=DEFAULT_ALPHA, entropy_beta=DEFAULT_ENTROPY,
+        entropy_fall=DEFAULT_ENTROPY_FALL, batch_size=DEFAULT_BATCH_SIZE,
+        scale_clamp_min=DEFAULT_SCALE_CLAMP_MIN, scale_clamp_max=DEFAULT_SCALE_CLAMP_MAX,
+        # agent config
+        advantage=DEFAULT_ADVANTAGE, network=DEFAULT_NET,
+        # Loading model
+        only_model=False, state_dict = None,
         **kwargs,
         ):
         super().__init__(env)
