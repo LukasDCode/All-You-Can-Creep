@@ -135,11 +135,11 @@ class PPOLearner(Agent):
             epoch=DEFAULT_EPOCH,
             gamma=DEFAULT_GAMMA,
             hidden_neurons=DEFAULT_HIDDEN_NEURONS,
-            state_dict=None,
+            only_model=False, state_dict=None,
             **kwargs,
         ):
         super().__init__(env)
-        params = {
+        self.config = {
             "batch_size" : batch_size,
             "buffer_size" : buffer_size,
             "alpha" : alpha,
@@ -150,8 +150,21 @@ class PPOLearner(Agent):
             "gamma" : gamma,
             "hidden_neurons" : hidden_neurons,
         }
-        self.__dict__.update(params)
-        mlflow.log_params(params)
+        if state_dict:
+          state_dict = state_dict["agent"]
+
+        """On full state loading override initial params"""
+        if not only_model and state_dict:
+            print("Loading initial params from state dict...")
+            self.config.update(state_dict["config"])
+            print("Loaded initial params from state dict.")
+        self.__dict__.update(self.config)
+
+        """On full state loading override param state"""
+        if not only_model and state_dict:
+            print("Loaded state params from state dict.")
+            self.__dict__.update(state_dict["state"])
+            print("Loaded state params from state dict.")
 
         self.device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda")
         self.actor = ActorNet(self.nr_input_features, self.nr_actions).to(self.device)
@@ -166,6 +179,13 @@ class PPOLearner(Agent):
 
         self.optimizer_crit = torch.optim.Adam(self.critic.parameters(), lr=self.alpha)
         self.optimizer_act = torch.optim.Adam(self.actor.parameters(), lr=self.alpha)
+
+        """Log Params"""
+        print(f"Loaded PPOLearner {str(self.config)}")
+        mlflow.log_params({
+            "agent": "ppo",
+            **self.config,
+        })
 
     def policy(self, state):
         """Behavioral strategy of the agent. Maps state to action."""
@@ -272,5 +292,7 @@ class PPOLearner(Agent):
         return {
           "model-critic": self.critic.state_dict(),
           "model-actor": self.actor.state_dict(),
+          "config": self.config,
+          "state": {k: self.__dict__.get(k) for k in self.config},
         }
     
