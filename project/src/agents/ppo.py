@@ -55,7 +55,7 @@ class ActorNet(nn.Module):
         locs = self.action_head_loc(x)
         scales = self.action_head_scale(x)
         scales.clamp(max=1)
-        return torch.distributions.normal.Normal(locs, scales)
+        return locs, scales
     
 class CriticNet(nn.Module):
     """
@@ -195,7 +195,8 @@ class PPOLearner(Agent):
 
     def predict_policy(self, states):
         """Behavioral strategy of the agent. Maps states to actions, log_probs."""
-        distributions = self.actor(states)
+        locs,scales = self.actor(states)
+        distributions = torch.distributions.normal.Normal(locs, scales)
         actions = distributions.sample().squeeze(1).clamp(min=-1, max=1)
         actions = actions.detach()
         log_probs = distributions.log_prob(actions)
@@ -239,28 +240,34 @@ class PPOLearner(Agent):
             self.memory.store_memory(reward, state, next_state, action)
             return {}
       
-        for _ in range(self.epoch):
+        
             
-            # update NNs
-            rewards, states, next_states, actions = zip(*self.memory.experiences)
-            # convert to tensor
-            #returns = self._compute_returns(rewards)
-            rewards = torch.tensor(rewards, dtype=torch.float, device=self.device)
-            states = torch.tensor(states, dtype=torch.float, device=self.device)
-            next_states = torch.tensor(next_states, dtype=torch.float, device=self.device)
-            actions = torch.tensor(actions, dtype=torch.float, device=self.device)
+        # update NNs
+        rewards, states, next_states, actions = zip(*self.memory.experiences)
+        # convert to tensor
+        #returns = self._compute_returns(rewards)
+        rewards = torch.tensor(rewards, dtype=torch.float, device=self.device)
+        states = torch.tensor(states, dtype=torch.float, device=self.device)
+        next_states = torch.tensor(next_states, dtype=torch.float, device=self.device)
+        actions = torch.tensor(actions, dtype=torch.float, device=self.device)
 
-            # Remove old policy values from gradient graph
-            state_values = self.critic(states).detach() 
-            next_state_values = self.critic(next_states).detach() 
-            _, old_log_probs = self.predict_policy(states) 
-            old_log_probs = old_log_probs.detach() #ditto
+        #recompute scales and locs for measures
+        action_locs, action_scales = self.actor(states)
+        action_locs = action_locs.detach()
+        action_scales = action_scales.detach()
 
-            # compute advantages
-            advantages = torch.stack(self._compute_advantage(rewards, state_values, next_state_values))
-            #advantages = F.normalize(advantages, dim=0) # normalize advantage
+        # Remove old policy values from gradient graph
+        state_values = self.critic(states).detach() 
+        next_state_values = self.critic(next_states).detach() 
+        _, old_log_probs = self.predict_policy(states) 
+        old_log_probs = old_log_probs.detach() #ditto
 
+        # compute advantages
+        advantages = torch.stack(self._compute_advantage(rewards, state_values, next_state_values))
 
+        actor_loss_list, critic_loss_list, loss_list = [],[],[]
+
+        for _ in range(self.epoch):
             for b_states, b_state_values, b_actions, b_old_log_probs, b_advantages \
                 in self.generate_batches(states, state_values, actions, old_log_probs, advantages):
 
@@ -269,24 +276,45 @@ class PPOLearner(Agent):
 
                 # batch actor loss
                 prob_ratio = b_new_log_probs.exp() / b_old_log_probs.exp()
-                prob_ratio_weighted = prob_ratio * b_advantages
+                prob_ratio_weighted = prob_ratio * b_advantages #normalisierung anwenden
                 prob_ratio_weighted_clipped = prob_ratio.clamp(min=1-self.epsilon_clip, max=1+self.epsilon_clip) * b_advantages
                 b_actor_loss = -torch.min(prob_ratio_weighted, prob_ratio_weighted_clipped).mean()
 
-                # batch critic loss
-                b_returns = b_advantages + b_state_values
+
+                #b_advantages = breturns - b_state_values
+                # batch critic loss, actor critic advantage
+                b_returns = b_advantages + b_state_values 
                 b_critic_loss = F.mse_loss(b_returns, b_new_state_values)
 
                 b_loss = b_actor_loss + b_critic_loss
 
+                # store losses in lists for measurements
+                critic_loss_list.append(b_critic_loss)
+                actor_loss_list.append(b_actor_loss)
+                loss_list.append(b_loss)
+                print("b_loss")
+                print(b_loss)
+                
                 self.optimizer_act.zero_grad()
                 self.optimizer_crit.zero_grad()
                 b_loss.backward()
                 self.optimizer_act.step()
                 self.optimizer_crit.step()
 
+        measures = {
+            "loss": torch.stack(loss_list).mean().item(),
+            "actor_loss": torch.stack(actor_loss_list).mean().item(),
+            "critic_loss" : torch.stack(critic_loss_list).mean().item(),
+            "advantages_std" : advantages.std().item(),
+            "action_loc_std": action_locs.std().item(),
+            "action_scale_avg": action_scales.mean().item(),
+            "action_scale_std": action_scales.std().item(),
+            "state_value_avg": state_values.mean().item(),
+            "state_value_std": state_values.std().item(),
+        }
+
         self.memory.clear_memory()
-        return {}
+        return measures
 
     def state_dict(self):
         return {
