@@ -237,8 +237,8 @@ class A2CLearner(Agent):
         )
         # print("Actions {} {}".format( action_locs, action_scales))
         m = torch.distributions.normal.Normal(action_locs, action_scales)
-        action = m.sample().detach() # Size([1,9])
-        return action.cpu().numpy()
+        action = m.sample().detach().clamp(min=-1, max=1) # Size([1,9])
+        return action.cpu().numpy() # Shape [1,action_space]
 
 
     """
