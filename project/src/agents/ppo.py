@@ -276,10 +276,10 @@ class PPOLearner(Agent):
 
                 # batch actor loss
                 prob_ratio = b_new_log_probs.exp() / b_old_log_probs.exp()
-                prob_ratio_weighted = prob_ratio * b_advantages #normalisierung anwenden
+                prob_ratio = F.normalize(prob_ratio, dim=1)
+                prob_ratio_weighted = prob_ratio * b_advantages
                 prob_ratio_weighted_clipped = prob_ratio.clamp(min=1-self.epsilon_clip, max=1+self.epsilon_clip) * b_advantages
                 b_actor_loss = -torch.min(prob_ratio_weighted, prob_ratio_weighted_clipped).mean()
-
 
                 #b_advantages = breturns - b_state_values
                 # batch critic loss, actor critic advantage
