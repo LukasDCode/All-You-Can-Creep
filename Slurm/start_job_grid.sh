@@ -1,5 +1,5 @@
 #!/bin/bash
-cd ../project
+#cd ../project
 
 #python3 -m src.tuning.main -variant gridsearch -r worm_grid_slurm -n 10000 -p 4 -b 1 -w 0 -adv reinforce -u
 #python3 -m src.tuning.main -variant gridsearch -r worm_grid_slurm -n 10000 -p 4 -b 1 -w 20 -adv reinforce -u
@@ -19,9 +19,10 @@ adv=(reinforce a2c td)
 batch_size=(1 10)
 index=0
 
-for b "${!batch_size[@]}"; do
-  for a "${!adv[@]}"; do
-    echo b a
+for b in "${!batch_size[@]}"; do
+  for a in "${!adv[@]}"; do
+    sbatch --partition=All start_job.sh "$index" "${batch_size[b]}" "${adv[a]}"
+    index=$((index+20))
   done
 done
-system("PAUSE")
+
