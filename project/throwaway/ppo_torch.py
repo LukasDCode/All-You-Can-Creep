@@ -69,7 +69,7 @@ class ActorNetwork(nn.Module):
         )
 
         self.optimizer = optim.Adam(self.parameters(), lr=alpha)
-        self.device = T.device('cuda:0' if T.cuda.is_available() else 'cpu')
+        self.device = T.device('cpu')
         self.to(self.device)
 
     def forward(self, state):
@@ -100,7 +100,7 @@ class CriticNetwork(nn.Module):
         )
 
         self.optimizer = optim.Adam(self.parameters(), lr=alpha)
-        self.device = T.device('cuda:0' if T.cuda.is_available() else 'cpu')
+        self.device = T.device('cpu')
         self.to(self.device)
 
     def forward(self, state):
@@ -114,15 +114,15 @@ class CriticNetwork(nn.Module):
         self.load_state_dict(T.load(self.checkpoint_file))
 
 class Agent:
-    def __init__(self, n_actions, input_dims, gamma=0.99, alpha=0.0003, gae_lambda=0.95,
+    def __init__(self, n_actions, input_dims, gamma=0.99, alpha1=0.0003, alpha2=0.001, gae_lambda=0.95,
             policy_clip=0.2, batch_size=64, n_epochs=10):
         self.gamma = gamma
         self.policy_clip = policy_clip
         self.n_epochs = n_epochs
         self.gae_lambda = gae_lambda
 
-        self.actor = ActorNetwork(n_actions, input_dims, alpha)
-        self.critic = CriticNetwork(input_dims, alpha)
+        self.actor = ActorNetwork(n_actions, input_dims, alpha1)
+        self.critic = CriticNetwork(input_dims, alpha2)
         self.memory = PPOMemory(batch_size)
        
     def remember(self, state, action, probs, vals, reward, done):
@@ -158,6 +158,7 @@ class Agent:
             state_arr, action_arr, old_prob_arr, vals_arr,\
             reward_arr, dones_arr, batches = \
                     self.memory.generate_batches()
+                    
             # state_arr = gleich, nur 20x8 anstatt 20x4
             # action_arr = 20x2 anstatt Liste mit 20 1er oder 0er
             # also eine Liste der Länge 20 mit 2 elementigen Listen
@@ -206,8 +207,6 @@ class Agent:
 
                 new_probs = dist.log_prob(actions)
 
-                ###################################################
-
                 prob_ratio = new_probs.exp() / old_probs.exp()
                 #prob_ratio = (new_probs - old_probs).exp()
 
@@ -223,9 +222,10 @@ class Agent:
                 critic_loss = critic_loss.mean()
                 
                 total_loss = actor_loss + 0.5*critic_loss
-                # print("Total_Loss:", total_loss)
-                # print("Critic_loss:", critic_loss)
-                # print("Actor_loss:", actor_loss)
+                
+                print("Total_Loss:", total_loss)
+                print("Critic_loss:", critic_loss)
+                print("Actor_loss:", actor_loss)
 
                 self.actor.optimizer.zero_grad()
                 self.critic.optimizer.zero_grad()
