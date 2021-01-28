@@ -14,9 +14,9 @@ def create_env():
     channel = EngineConfigurationChannel()
     channel.set_configuration_parameters(time_scale=2)
     unity_env = UnityEnvironment(
-        file_name="../Unity/ball.x86_64" if "linux" in platform else "../Unity",
+        file_name="../Unity/simple_ball_environment.x86_64" if "linux" in platform else "../Unity",
         worker_id=0,
-        no_graphics=False,
+        no_graphics=True,
         side_channels=[channel]
     )
     unity_env.reset()

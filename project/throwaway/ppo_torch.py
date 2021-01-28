@@ -223,9 +223,9 @@ class Agent:
                 
                 total_loss = actor_loss + 0.5*critic_loss
                 
-                print("Total_Loss:", total_loss)
-                print("Critic_loss:", critic_loss)
-                print("Actor_loss:", actor_loss)
+                #print("Total_Loss:", total_loss)
+                #print("Critic_loss:", critic_loss)
+                #print("Actor_loss:", actor_loss)
 
                 self.actor.optimizer.zero_grad()
                 self.critic.optimizer.zero_grad()
