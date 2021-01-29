@@ -12,9 +12,9 @@ from mlagents_envs.side_channel.engine_configuration_channel import EngineConfig
 def create_env():
     """ Environment Setup"""
     channel = EngineConfigurationChannel()
-    channel.set_configuration_parameters(time_scale=2)
+    channel.set_configuration_parameters(time_scale=20)
     unity_env = UnityEnvironment(
-        file_name="../Unity/simple_ball_environment.x86_64" if "linux" in platform else "../Unity",
+        file_name="../Unity/simple_ball_environment.x86_64" if "linux" in platform else "../../Worm",
         worker_id=0,
         no_graphics=True,
         side_channels=[channel]
@@ -31,6 +31,19 @@ def run(args):
     env = create_env()
     env.reset()
 
+    nr_input_features = env.observation_space.shape[-1]
+    nr_actions = env.action_space.shape[0]
+    lower_bound = env.action_space.low[0]
+    upper_bound = env.action_space.high[0]
+
+    print()
+    print("Environment loaded!")
+    print()
+    print("  nr_input_features :", env.observation_space.shape[-1])
+    print("  nr_actions        :", env.action_space.shape[0])
+    print("  lower_bound       :", env.action_space.low[0])
+    print("  upper_bound       :", env.action_space.high[0])
+
     N = args["buffer_size"]
     batch_size = args["batch_size"]
     n_epochs = args["n_epochs"]
@@ -40,21 +53,19 @@ def run(args):
 
     print()
     print("Welcome to our Training 8-)")
-    print("  We will train for " + str(n_games) + " episodes!")
-    print("  Learning rate actor NN  : " + str(alpha1))
-    print("  Learning rate critic NN : " + str(alpha2))
-    print("  Batch size              : " + str(batch_size))
-    print("  Buffer size             : " + str(N))
-    print("  Epochs of updates       : " + str(n_epochs))
+    print()
+    print("  We will train for",str(n_games)," episodes!")
+    print("  Learning rate actor NN  :", str(alpha1))
+    print("  Learning rate critic NN :", str(alpha2))
+    print("  Batch size              :", str(batch_size))
+    print("  Buffer size             :", str(N))
+    print("  Epochs of updates       :", str(n_epochs))
     print()
     print()
 
-    agent = Agent(n_actions=2, batch_size=batch_size, 
+    agent = Agent(n_actions=nr_actions, batch_size=batch_size, 
                     alpha1=alpha1,alpha2=alpha2, n_epochs=n_epochs, 
-                    input_dims=8)
-    #agent = Agent(n_actions=env.action_space.n, batch_size=batch_size, 
-    #                alpha=alpha, n_epochs=n_epochs, 
-    #                input_dims=env.observation_space.shape)
+                    input_dims=nr_input_features)
 
     figure_file = 'plots/ball/' + str(n_games) + 'a1' + str(alpha1) + 'a2' + str(alpha2) + 'bs' + str(batch_size) + 'N' + str(N) + 'n_epochs' + str(n_epochs) + '.png'
 
@@ -66,7 +77,9 @@ def run(args):
     n_steps = 0
 
     for i in range(n_games):
+        print("start env.reset")
         observation = env.reset()
+        print("end env.reset")
         done = False
         score = 0
         while not done:
@@ -76,7 +89,9 @@ def run(args):
             score += reward
             agent.remember(observation, action, prob, val, reward, done)
             if n_steps % N == 0:
+                print("start agent.learn")
                 agent.learn()
+                print("end agent.learn")
                 learn_iters += 1
             observation = observation_
         score_history.append(score)
@@ -87,7 +102,7 @@ def run(args):
             print("Saving Model at Step:", i, "with average:", avg_score)
             agent.save_models()
 
-        if i%50 == 0:
+        if i%1 == 0:
             print('episode', i, 'score %.1f' % score, 'avg score %.1f' % avg_score,\
                 'time_steps', n_steps, 'learning_steps', learn_iters)
 
