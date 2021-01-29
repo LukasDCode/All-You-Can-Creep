@@ -49,7 +49,7 @@ class PPOMemory:
 
 class ActorNetwork(nn.Module):
     def __init__(self, n_actions, input_dims, alpha,
-            fc1_dims=256, fc2_dims=256, chkpt_dir='tmp/ppo'):
+            fc1_dims=128, fc2_dims=128, chkpt_dir='tmp/ppo'):
         super(ActorNetwork, self).__init__()
 
         self.checkpoint_file = os.path.join(chkpt_dir, 'actor_torch_ppo')
@@ -86,7 +86,7 @@ class ActorNetwork(nn.Module):
         self.load_state_dict(T.load(self.checkpoint_file))
 
 class CriticNetwork(nn.Module):
-    def __init__(self, input_dims, alpha, fc1_dims=256, fc2_dims=256,
+    def __init__(self, input_dims, alpha, fc1_dims=128, fc2_dims=128,
             chkpt_dir='tmp/ppo'):
         super(CriticNetwork, self).__init__()
 
@@ -154,35 +154,20 @@ class Agent:
         return action, probs, value
 
     def learn(self):
+
+        print("start learn")
         for _ in range(self.n_epochs):
+
+            print("  start generate_batches")
             state_arr, action_arr, old_prob_arr, vals_arr,\
             reward_arr, dones_arr, batches = \
                     self.memory.generate_batches()
-                    
-            # state_arr = gleich, nur 20x8 anstatt 20x4
-            # action_arr = 20x2 anstatt Liste mit 20 1er oder 0er
-            # also eine Liste der Länge 20 mit 2 elementigen Listen
-            # old_prob_arr = 20x2 anstatt Liste mit 20 Floats
-
-            # vals_arr = gleich, Liste mit 20 floats
-            # reward_arr = gleich, Liste mit 20 floats
-            # dones_arr = gleich, Liste mit 20 booleans
-            # batches = gleich, Liste mit 5 arrays
-            # [array([17, 13,  9,  6, 10]), array([15, 16, 14, 11,  2]), array([ 1, 18,  3, 12,  8]), array([19,  4,  0,  7,  5])]
-
-            """
-            print("State_arr:", state_arr)
-            print("Action_arr:", action_arr)
-            print("Old_prob_arr:", old_prob_arr)
-            print("Vals_arr:", vals_arr)
-            print("Reward_arr:", reward_arr)
-            print("Dones_arr:", dones_arr)
-            print("Batches:", batches)
-            """
+            print("  end generate_batches")
 
             values = vals_arr
             advantage = np.zeros(len(reward_arr), dtype=np.float32)
 
+            print("  start discounting")
             for t in range(len(reward_arr)-1):
                 discount = 1
                 a_t = 0
@@ -192,8 +177,10 @@ class Agent:
                     discount *= self.gamma*self.gae_lambda
                 advantage[t] = a_t
             advantage = T.tensor(advantage).to(self.actor.device)
+            print("  end discounting")
 
             values = T.tensor(values).to(self.actor.device)
+            print("  start batch in batches")
             for batch in batches:
                 states = T.tensor(state_arr[batch], dtype=T.float).to(self.actor.device)
                 old_probs = T.tensor(old_prob_arr[batch]).to(self.actor.device)
@@ -208,7 +195,6 @@ class Agent:
                 new_probs = dist.log_prob(actions)
 
                 prob_ratio = new_probs.exp() / old_probs.exp()
-                #prob_ratio = (new_probs - old_probs).exp()
 
                 weighted_probs = advantage[batch].unsqueeze(1) * prob_ratio
                 
@@ -222,17 +208,15 @@ class Agent:
                 critic_loss = critic_loss.mean()
                 
                 total_loss = actor_loss + 0.5*critic_loss
-                
-                #print("Total_Loss:", total_loss)
-                #print("Critic_loss:", critic_loss)
-                #print("Actor_loss:", actor_loss)
 
                 self.actor.optimizer.zero_grad()
                 self.critic.optimizer.zero_grad()
                 total_loss.backward()
                 self.actor.optimizer.step()
                 self.critic.optimizer.step()
+            print("  end batch in batches")
 
+        print("end learn")
         self.memory.clear_memory()               
 
 
