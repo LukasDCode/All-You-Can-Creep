@@ -27,6 +27,9 @@ class PPOMemory:
     def clear_memory(self):
         self.experiences = []
 
+    def size(self):
+        return len(self.experiences)
+
 
 class ActorNet(nn.Module):
     """
@@ -202,14 +205,23 @@ class PPOLearner(Agent):
         log_probs = distributions.log_prob(actions)
         return actions, log_probs
 
-    def _compute_advantage(self, rewards, state_values, next_state_values):
-        #next_state_values = [*state_values[1::], 0.]# may fail :)
-        list_of_tuples = list(zip(rewards, state_values, next_state_values))
+    def _compute_advantage(self, rewards, state_values, next_state_values, dones):
+        list_of_tuples = list(zip(rewards, state_values, next_state_values, dones))
         advantages, A = [], 0
-        for reward, state_value, next_state_value, in reversed(list_of_tuples):  #this could be a bug (bsc 2021) - last next_state_value has to be 0
-            A = reward + self.gamma * next_state_value - state_value + self.gamma * self.lambd * A
+        # print("dones", dones)
+        # print("state_values", state_values)
+        # print("next_state_values", next_state_values)
+        # print("rewards", rewards)
+        for reward, state_value, next_state_value, done,  in reversed(list_of_tuples):
+            print("state_value", state_value, "reward", reward)
+            if done: #?
+                print("I AM HEEEEEREEEEEE ###############")
+                A = 0
+            A *= self.gamma * self.lambd
+            A += reward + self.gamma * next_state_value * (1 - int(done)) - state_value
             advantages.append(A)
         advantages.reverse()
+        print("advantages", advantages)
         return advantages
     
     def _compute_returns(self, rewards):
@@ -235,15 +247,13 @@ class PPOLearner(Agent):
         the agent's current knowledge.
         """
 
-        # store experience
-        if not done:
-            self.memory.store_memory(reward, state, next_state, action)
+        self.memory.store_memory(reward, state, next_state, action, done)
+        if self.memory.size() < self.buffer_size:
             return {}
-      
         
             
         # update NNs
-        rewards, states, next_states, actions = zip(*self.memory.experiences)
+        rewards, states, next_states, actions, dones = zip(*self.memory.experiences)
         # convert to tensor
         #returns = self._compute_returns(rewards)
         rewards = torch.tensor(rewards, dtype=torch.float, device=self.device)
@@ -263,7 +273,7 @@ class PPOLearner(Agent):
         old_log_probs = old_log_probs.detach() #ditto
 
         # compute advantages
-        advantages = torch.stack(self._compute_advantage(rewards, state_values, next_state_values))
+        advantages = torch.stack(self._compute_advantage(rewards, state_values, next_state_values, dones)) # dones
 
         actor_loss_list, critic_loss_list, loss_list = [],[],[]
 
