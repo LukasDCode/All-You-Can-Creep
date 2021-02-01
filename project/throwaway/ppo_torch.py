@@ -49,7 +49,7 @@ class PPOMemory:
 
 class ActorNetwork(nn.Module):
     def __init__(self, n_actions, input_dims, alpha,
-            fc1_dims=128, fc2_dims=128, chkpt_dir='tmp/ppo'):
+            fc1_dims=256, fc2_dims=256, chkpt_dir='tmp/ppo'):
         super(ActorNetwork, self).__init__()
 
         self.checkpoint_file = os.path.join(chkpt_dir, 'actor_torch_ppo')
@@ -86,7 +86,7 @@ class ActorNetwork(nn.Module):
         self.load_state_dict(T.load(self.checkpoint_file))
 
 class CriticNetwork(nn.Module):
-    def __init__(self, input_dims, alpha, fc1_dims=128, fc2_dims=128,
+    def __init__(self, input_dims, alpha, fc1_dims=256, fc2_dims=256,
             chkpt_dir='tmp/ppo'):
         super(CriticNetwork, self).__init__()
 
@@ -163,11 +163,20 @@ class Agent:
             reward_arr, dones_arr, batches = \
                     self.memory.generate_batches()
             print("  end generate_batches")
+            
+            '''
+            cont = False
+            for i in range(len(reward_arr)):
+                if reward_arr[i] > 0.0:
+                    cont = True
+            if cont:
+                break   
+            '''
 
             values = vals_arr
             advantage = np.zeros(len(reward_arr), dtype=np.float32)
 
-            print("  start discounting")
+            '''print("  start discounting 1")
             for t in range(len(reward_arr)-1):
                 discount = 1
                 a_t = 0
@@ -176,9 +185,19 @@ class Agent:
                             (1-int(dones_arr[k])) - values[k])
                     discount *= self.gamma*self.gae_lambda
                 advantage[t] = a_t
-            advantage = T.tensor(advantage).to(self.actor.device)
-            print("  end discounting")
+            print(advantage)
+            print("  end discounting 1")'''
 
+            print("  start discounting 2")
+            a = np.zeros(len(reward_arr), dtype=np.float32)
+
+            for i in range(len(reward_arr)-1):
+                a[-(i+2)] = a[-(i+1)] * self.gamma * self.gae_lambda + reward_arr[-(i+2)] + self.gamma*values[-(i+1)]*(1-int(dones_arr[-(i+2)])) - values[-(i+2)]
+
+            print(a)
+            print("  end discounting 2")
+
+            advantage = T.tensor(a).to(self.actor.device)
             values = T.tensor(values).to(self.actor.device)
             print("  start batch in batches")
             for batch in batches:
