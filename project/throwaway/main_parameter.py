@@ -10,11 +10,11 @@ from mlagents_envs.side_channel.engine_configuration_channel import EngineConfig
 
 
 def create_env():
-    """ Environment Setup"""
+    """Environment Setup"""
     channel = EngineConfigurationChannel()
     channel.set_configuration_parameters(time_scale=20)
     unity_env = UnityEnvironment(
-        file_name="../Unity/simple_ball_environment.x86_64" if "linux" in platform else "../../Worm",
+        file_name="../Unity/simple_ball_environment.x86_64" if "linux" in platform else "../../WormDynamic", #WormDynamic #Ball
         worker_id=0,
         no_graphics=True,
         side_channels=[channel]
@@ -69,6 +69,8 @@ def run(args):
 
     figure_file = 'plots/ball/' + str(n_games) + 'a1' + str(alpha1) + 'a2' + str(alpha2) + 'bs' + str(batch_size) + 'N' + str(N) + 'n_epochs' + str(n_epochs) + '.png'
 
+    agent.load_models()
+
     best_score = env.reward_range[0]
     score_history = []
 
@@ -77,9 +79,9 @@ def run(args):
     n_steps = 0
 
     for i in range(n_games):
-        print("start env.reset")
+        #print("start env.reset")
         observation = env.reset()
-        print("end env.reset")
+        #print("end env.reset")
         done = False
         score = 0
         while not done:
@@ -99,8 +101,8 @@ def run(args):
 
         if avg_score > best_score:
             best_score = avg_score
-            print("Saving Model at Step:", i, "with average:", avg_score)
-            agent.save_models()
+        print("Saving Model at Step:", i, "with average:", avg_score)
+        agent.save_models()
 
         if i%1 == 0:
             print('episode', i, 'score %.1f' % score, 'avg score %.1f' % avg_score,\
@@ -113,12 +115,12 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Run worms with hyper params')
 
-    parser.add_argument('-n','--episodes', type=int, default=10, help='Training episodes')
+    parser.add_argument('-n','--episodes', type=int, default=1000, help='Training episodes')
     parser.add_argument('-e','--n_epochs', type=int, default=4, help='Epochs of updates')
-    parser.add_argument('-bas', '--batch_size', type=int, default=5, help='Batch size')
+    parser.add_argument('-bas', '--batch_size', type=int, default=2024, help='Batch size')
     parser.add_argument('-a1', '--alpha1', type=float, default=0.0003, help='Learning rate actor NN')
     parser.add_argument('-a2', '--alpha2', type=float, default=0.0003, help='Learning rate critic NN')
-    parser.add_argument('-bus', '--buffer_size', type=int, default=20, help='Buffer size, should be multiple batch size')
+    parser.add_argument('-bus', '--buffer_size', type=int, default=20240, help='Buffer size, should be multiple batch size')
 
     run(vars(parser.parse_args()))
 
