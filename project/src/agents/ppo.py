@@ -76,7 +76,7 @@ class CriticNet(nn.Module):
         )
 
     def forward(self, states):
-        x = self.critic_net(states)
+        x = self.critic_net(states).squeeze(1)
         return x  
     
 def parameters(actor: nn.Module,critic : nn.Module):
@@ -87,7 +87,7 @@ DEFAULT_BATCH_SIZE = 2024
 DEFAULT_BUFFER_SIZE = 20240
 DEFAULT_ALPHA = 0.0003
 DEFAULT_BETA = 0.005
-DEFAULT_EPSILON_CLIP = 0.02
+DEFAULT_EPSILON_CLIP = 0.2
 DEFAULT_LAMBDA = 0.95
 DEFAULT_EPOCH = 3
 DEFAULT_GAMMA = 0.995
@@ -113,15 +113,15 @@ class PPOLearner(Agent):
     
     @staticmethod
     def add_hyper_param_args(parser: ArgumentParser):
-        parser.add_argument("-bs", "--batch_size", type=int, default=2024)
-        parser.add_argument("-buffs", "--buffer_size", type=int, default=20240)
-        parser.add_argument("-a", "--alpha", type=float, default=0.0003, help="Learning rate")
-        parser.add_argument("-b", "--beta", type=float, default=0.005,)
-        parser.add_argument("-e", "--epsilon_clip", type=float, default=0.02,)
-        parser.add_argument("-l", "--lambd", type=float, default=0.95,)
-        parser.add_argument("-epoch", "--epoch", type=int, default=3,)
-        parser.add_argument("-g", "--gamma", type=float, default=0.995,)
-        parser.add_argument("-hn", "--hidden_neurons", type=int, default=512)
+        parser.add_argument("-bs", "--batch_size", type=int, default=DEFAULT_BATCH_SIZE)
+        parser.add_argument("-buffs", "--buffer_size", type=int, default=DEFAULT_BUFFER_SIZE)
+        parser.add_argument("-a", "--alpha", type=float, default=DEFAULT_ALPHA, help="Learning rate")
+        parser.add_argument("-b", "--beta", type=float, default=DEFAULT_BETA,)
+        parser.add_argument("-e", "--epsilon_clip", type=float, default=DEFAULT_EPSILON_CLIP,)
+        parser.add_argument("-l", "--lambd", type=float, default=DEFAULT_LAMBDA,)
+        parser.add_argument("-epoch", "--epoch", type=int, default=DEFAULT_EPOCH,)
+        parser.add_argument("-g", "--gamma", type=float, default=DEFAULT_GAMMA,)
+        parser.add_argument("-hn", "--hidden_neurons", type=int, default=DEFAULT_HIDDEN_NEURONS)
     
     @staticmethod
     def add_config_args(parser):
@@ -192,7 +192,7 @@ class PPOLearner(Agent):
 
     def policy(self, state):
         """Behavioral strategy of the agent. Maps state to action."""
-        states = torch.tensor([state], dtype=torch.float, device=self.device)
+        states = torch.tensor([state], dtype=torch.float32, device=self.device)
         actions, _ = self.predict_policy(states)
         return actions[0].detach().clone().cpu().numpy()
 
@@ -200,38 +200,24 @@ class PPOLearner(Agent):
         """Behavioral strategy of the agent. Maps states to actions, log_probs."""
         locs,scales = self.actor(states)
         distributions = torch.distributions.normal.Normal(locs, scales)
-        actions = distributions.sample().squeeze(1).clamp(min=-1, max=1)
-        actions = actions.detach()
+        actions = distributions.sample()
+        actions = actions.squeeze(1)
+        actions = actions.clamp(min=-1, max=1)
         log_probs = distributions.log_prob(actions)
-        return actions, log_probs
+        return actions.detach(), log_probs
 
     def _compute_advantage(self, rewards, state_values, next_state_values, dones):
         list_of_tuples = list(zip(rewards, state_values, next_state_values, dones))
         advantages, A = [], 0
-        # print("dones", dones)
-        # print("state_values", state_values)
-        # print("next_state_values", next_state_values)
-        # print("rewards", rewards)
         for reward, state_value, next_state_value, done,  in reversed(list_of_tuples):
-            print("state_value", state_value, "reward", reward)
-            if done: #?
-                print("I AM HEEEEEREEEEEE ###############")
+            if done:
                 A = 0
             A *= self.gamma * self.lambd
             A += reward + self.gamma * next_state_value * (1 - int(done)) - state_value
-            advantages.append(A)
+            advantages.append(A.item())
         advantages.reverse()
-        print("advantages", advantages)
-        return advantages
+        return torch.tensor(advantages, device=self.device, dtype=torch.float32)
     
-    def _compute_returns(self, rewards):
-        discounted_returns = []
-        R = 0
-        for reward in reversed(rewards):
-          R = reward + self.gamma*R 
-        discounted_returns.reverse()
-        discounted_returns = torch.tensor(discounted_returns, device=self.device, dtype=torch.float)
-        return F.normalize(discounted_returns, dim=0)
 
     def generate_batches(self, *tensors):
         memory_len = len(tensors[0])
@@ -251,15 +237,16 @@ class PPOLearner(Agent):
         if self.memory.size() < self.buffer_size:
             return {}
         
+        print("Learning from experiences")
             
         # update NNs
         rewards, states, next_states, actions, dones = zip(*self.memory.experiences)
         # convert to tensor
         #returns = self._compute_returns(rewards)
-        rewards = torch.tensor(rewards, dtype=torch.float, device=self.device)
-        states = torch.tensor(states, dtype=torch.float, device=self.device)
-        next_states = torch.tensor(next_states, dtype=torch.float, device=self.device)
-        actions = torch.tensor(actions, dtype=torch.float, device=self.device)
+        rewards = torch.tensor(rewards, dtype=torch.float32, device=self.device)
+        states = torch.tensor(states, dtype=torch.float32, device=self.device)
+        next_states = torch.tensor(next_states, dtype=torch.float32, device=self.device)
+        actions = torch.tensor(actions, dtype=torch.float32, device=self.device)
 
         #recompute scales and locs for measures
         action_locs, action_scales = self.actor(states)
@@ -273,7 +260,7 @@ class PPOLearner(Agent):
         old_log_probs = old_log_probs.detach() #ditto
 
         # compute advantages
-        advantages = torch.stack(self._compute_advantage(rewards, state_values, next_state_values, dones)) # dones
+        advantages = self._compute_advantage(rewards, state_values, next_state_values, dones) # dones
 
         actor_loss_list, critic_loss_list, loss_list = [],[],[]
 
@@ -286,16 +273,17 @@ class PPOLearner(Agent):
 
                 # batch actor loss
                 prob_ratio = b_new_log_probs.exp() / b_old_log_probs.exp()
-                prob_ratio = F.normalize(prob_ratio, dim=1)
-                prob_ratio_weighted = prob_ratio * b_advantages
-                prob_ratio_weighted_clipped = prob_ratio.clamp(min=1-self.epsilon_clip, max=1+self.epsilon_clip) * b_advantages
+
+                b_advantages_expanded =b_advantages.unsqueeze(1).expand(-1, self.nr_actions)
+                prob_ratio_weighted = prob_ratio * b_advantages_expanded
+                prob_ratio_weighted_clipped = prob_ratio.clamp(min=1-self.epsilon_clip, max=1+self.epsilon_clip) * b_advantages_expanded
+
                 b_actor_loss = -torch.min(prob_ratio_weighted, prob_ratio_weighted_clipped).mean()
 
                 #b_advantages = breturns - b_state_values
                 # batch critic loss, actor critic advantage
                 b_returns = b_advantages + b_state_values 
                 b_critic_loss = F.mse_loss(b_returns, b_new_state_values)
-
                 b_loss = b_actor_loss + b_critic_loss
 
                 # store losses in lists for measurements
@@ -320,6 +308,7 @@ class PPOLearner(Agent):
             "state_value_avg": state_values.mean().item(),
             "state_value_std": state_values.std().item(),
         }
+        mlflow.log_metrics(measures, step=nr_episode)
 
         self.memory.clear_memory()
         return measures
