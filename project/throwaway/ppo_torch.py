@@ -49,7 +49,7 @@ class PPOMemory:
 
 class ActorNetwork(nn.Module):
     def __init__(self, n_actions, input_dims, alpha,
-            fc1_dims=256, fc2_dims=256, chkpt_dir='tmp/ppo'):
+            fc1_dims=512, fc2_dims=512, chkpt_dir='tmp/ppo'):
         super(ActorNetwork, self).__init__()
 
         self.checkpoint_file = os.path.join(chkpt_dir, 'actor_torch_ppo')
@@ -86,7 +86,7 @@ class ActorNetwork(nn.Module):
         self.load_state_dict(T.load(self.checkpoint_file))
 
 class CriticNetwork(nn.Module):
-    def __init__(self, input_dims, alpha, fc1_dims=256, fc2_dims=256,
+    def __init__(self, input_dims, alpha, fc1_dims=512, fc2_dims=512,
             chkpt_dir='tmp/ppo'):
         super(CriticNetwork, self).__init__()
 
@@ -114,7 +114,7 @@ class CriticNetwork(nn.Module):
         self.load_state_dict(T.load(self.checkpoint_file))
 
 class Agent:
-    def __init__(self, n_actions, input_dims, gamma=0.99, alpha1=0.0003, alpha2=0.001, gae_lambda=0.95,
+    def __init__(self, n_actions, input_dims, gamma=0.995, alpha1=0.0003, alpha2=0.0003, gae_lambda=0.95,
             policy_clip=0.2, batch_size=64, n_epochs=10):
         self.gamma = gamma
         self.policy_clip = policy_clip
@@ -130,8 +130,8 @@ class Agent:
 
     def save_models(self):
         print('... saving models ...')
-        self.actor.save_checkpoint()
-        self.critic.save_checkpoint()
+        #self.actor.save_checkpoint()
+        #self.critic.save_checkpoint()
 
     def load_models(self):
         print('... loading models ...')
@@ -155,14 +155,11 @@ class Agent:
 
     def learn(self):
 
-        print("start learn")
         for _ in range(self.n_epochs):
 
-            print("  start generate_batches")
             state_arr, action_arr, old_prob_arr, vals_arr,\
             reward_arr, dones_arr, batches = \
                     self.memory.generate_batches()
-            print("  end generate_batches")
             
             '''
             cont = False
@@ -188,18 +185,13 @@ class Agent:
             print(advantage)
             print("  end discounting 1")'''
 
-            print("  start discounting 2")
             a = np.zeros(len(reward_arr), dtype=np.float32)
 
             for i in range(len(reward_arr)-1):
                 a[-(i+2)] = a[-(i+1)] * self.gamma * self.gae_lambda + reward_arr[-(i+2)] + self.gamma*values[-(i+1)]*(1-int(dones_arr[-(i+2)])) - values[-(i+2)]
 
-            print(a)
-            print("  end discounting 2")
-
             advantage = T.tensor(a).to(self.actor.device)
             values = T.tensor(values).to(self.actor.device)
-            print("  start batch in batches")
             for batch in batches:
                 states = T.tensor(state_arr[batch], dtype=T.float).to(self.actor.device)
                 old_probs = T.tensor(old_prob_arr[batch]).to(self.actor.device)
@@ -233,9 +225,7 @@ class Agent:
                 total_loss.backward()
                 self.actor.optimizer.step()
                 self.critic.optimizer.step()
-            print("  end batch in batches")
 
-        print("end learn")
         self.memory.clear_memory()               
 
 
