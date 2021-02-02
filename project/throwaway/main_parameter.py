@@ -12,11 +12,11 @@ from mlagents_envs.side_channel.engine_configuration_channel import EngineConfig
 def create_env():
     """Environment Setup"""
     channel = EngineConfigurationChannel()
-    channel.set_configuration_parameters(time_scale=20)
+    channel.set_configuration_parameters(time_scale=2)
     unity_env = UnityEnvironment(
         file_name="../Unity/simple_ball_environment.x86_64" if "linux" in platform else "../../WormDynamic", #WormDynamic #Ball
-        worker_id=0,
-        no_graphics=True,
+        worker_id=10,
+        no_graphics=False,
         side_channels=[channel]
     )
     unity_env.reset()
@@ -24,7 +24,7 @@ def create_env():
         unity_env
         )
     return env
-
+    
 
 def run(args):
 
@@ -79,9 +79,8 @@ def run(args):
     n_steps = 0
 
     for i in range(n_games):
-        #print("start env.reset")
+
         observation = env.reset()
-        #print("end env.reset")
         done = False
         score = 0
         while not done:
@@ -91,21 +90,20 @@ def run(args):
             score += reward
             agent.remember(observation, action, prob, val, reward, done)
             if n_steps % N == 0:
-                print("start agent.learn")
                 agent.learn()
-                print("end agent.learn")
                 learn_iters += 1
             observation = observation_
         score_history.append(score)
         avg_score = np.mean(score_history[-100:])
+        #score_10 = np.mean(score_history[-10:])
 
         if avg_score > best_score:
             best_score = avg_score
-        print("Saving Model at Step:", i, "with average:", avg_score)
-        agent.save_models()
+            print("Saving Model at Step:", i, "with average:", avg_score)
+            agent.save_models()
 
         if i%1 == 0:
-            print('episode', i, 'score %.1f' % score, 'avg score %.1f' % avg_score,\
+            print('episode', i, 'score %.6f' % score, 'avg score %.1f' % avg_score,\
                 'time_steps', n_steps, 'learning_steps', learn_iters)
 
     x = [i+1 for i in range(len(score_history))]
@@ -115,8 +113,8 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Run worms with hyper params')
 
-    parser.add_argument('-n','--episodes', type=int, default=1000, help='Training episodes')
-    parser.add_argument('-e','--n_epochs', type=int, default=4, help='Epochs of updates')
+    parser.add_argument('-n','--episodes', type=int, default=10000, help='Training episodes')
+    parser.add_argument('-e','--n_epochs', type=int, default=3, help='Epochs of updates')
     parser.add_argument('-bas', '--batch_size', type=int, default=2024, help='Batch size')
     parser.add_argument('-a1', '--alpha1', type=float, default=0.0003, help='Learning rate actor NN')
     parser.add_argument('-a2', '--alpha2', type=float, default=0.0003, help='Learning rate critic NN')
