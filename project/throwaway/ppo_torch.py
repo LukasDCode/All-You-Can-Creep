@@ -130,8 +130,8 @@ class Agent:
 
     def save_models(self):
         print('... saving models ...')
-        #self.actor.save_checkpoint()
-        #self.critic.save_checkpoint()
+        self.actor.save_checkpoint()
+        self.critic.save_checkpoint()
 
     def load_models(self):
         print('... loading models ...')
