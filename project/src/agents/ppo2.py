@@ -269,10 +269,10 @@ class PPO2Learner(Agent):
             values = torch.tensor(values).to(self.actor.device)
 
             for batch in batches:
+
                 states = torch.tensor(state_arr[batch], dtype=torch.float).to(self.actor.device)
                 old_probs = torch.tensor(old_prob_arr[batch]).to(self.actor.device)
                 actions = torch.tensor(action_arr[batch]).to(self.actor.device)
-
 
                 dist = self.actor(states)
                 critic_value = self.critic(states)
@@ -297,12 +297,7 @@ class PPO2Learner(Agent):
                 critic_loss = (returns-critic_value)**2
                 critic_loss = critic_loss.mean()
 
-
-
                 total_loss = actor_loss + 0.5*critic_loss
-
-
-
 
                 self.actor.optimizer.zero_grad()
                 self.critic.optimizer.zero_grad()

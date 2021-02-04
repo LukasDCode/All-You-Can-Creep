@@ -30,7 +30,6 @@ class WormDomain():
         }
 
     def create_env(self, worker_id, **kwargs):
-        """ Environment Setup"""
         channel = EngineConfigurationChannel()
         channel.set_configuration_parameters(time_scale=self.time_scale)
         unity_env = UnityEnvironment(
