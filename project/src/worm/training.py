@@ -12,6 +12,7 @@ import torch
 
 from ..agents.agent import Agent
 from ..agents.a2c import A2CLearner
+from ..agents.ppo_v2 import PPOv2Learner
 from ..agents.randomagent import RandomAgent
 from ..exec.executor import Runner, Executor
 from .domain import WormDomain
@@ -49,6 +50,61 @@ class AgentRunner(Runner):
         self.upload_state_dicts = upload_state_dicts
 
     @staticmethod
+    def print_stats_on_console(nr_episode, sum_reward, time_step):
+        if nr_episode % 25 == 0:
+            print("e:", nr_episode , ", r:", sum_reward , ", i:", time_step)
+    
+    @staticmethod
+    def train_buffer(domain, env, agent, step_counter, nr_episode=0):
+        state = env.reset()
+        sum_reward = 0
+        done = False
+        time_step = 0
+        measures_dict = None
+        states=[]
+        # step_counter = 0
+        prob, value = None, None
+        while not done:
+            
+            # 1. Select action according to policy
+            action, prob, value = agent.policy(state)
+
+            # 2. Execute selected action
+            try:
+                next_state, reward, done, _ = env.step(action) # _ = decision_steps but are not used here
+                agent.remember(state, action, prob, value, reward, done)
+                step_counter += 1
+            except Exception as e:
+                raise Exception(f"Stepping env failed:\nstate:{state}\naction:{action}") from e
+
+            # 3. Integrate new experience into agent
+            if step_counter % agent.get_buffersize() == 0:
+                measures_dict = agent.update()               
+            
+            # 4 step through
+            state = next_state
+            states.append(state)
+            sum_reward += reward
+            time_step += 1
+
+        AgentRunner.print_stats_on_console(nr_episode, sum_reward, time_step)
+
+        # Add domain specific measures
+        if measures_dict == None:
+            return {
+                **domain.evaluate(states),
+                "reward": sum_reward,
+                "episode":nr_episode,
+            }, step_counter
+        else:
+            return {
+                **domain.evaluate(states),
+                **measures_dict,
+                "reward": sum_reward,
+                "episode":nr_episode,
+            }, step_counter
+
+    @staticmethod
     def train_episode(domain, env, agent, nr_episode=0):
         state = env.reset()
         sum_reward = 0
@@ -57,24 +113,27 @@ class AgentRunner(Runner):
         measures_dict = None
         states=[]
         while not done:
+
             # 1. Select action according to policy
             action, probs, value = agent.policy(state)
-            #action = 2 * np.random.random_sample(9) - 1 #randomWorm
-            #action = 2 * np.random.random_sample(2) - 1 #randomBall
+
             # 2. Execute selected action
             try:
                 next_state, reward, done, _ = env.step(action) # _ = decision_steps but are not used here
             except Exception as e:
                 raise Exception(f"Stepping env failed:\nstate:{state}\naction:{action}") from e
+
             # 3. Integrate new experience into agent
             measures_dict = agent.update(nr_episode, state, action, reward, next_state, done)
+
             # 4 step through
             state = next_state
             states.append(state)
             sum_reward += reward
             time_step += 1
-        if nr_episode % 25 == 0:
-            print(f"e: {nr_episode}, r: {sum_reward}, i: {time_step}")
+        
+        AgentRunner.print_stats_on_console(nr_episode, sum_reward, time_step)
+
         # Add domain specific measures
         return {
             **domain.evaluate(states),
@@ -145,18 +204,29 @@ class AgentRunner(Runner):
 
         rewards = []
         best_avg_reward = 0
+        agent_is_ppo = True if isinstance(agent, PPOv2Learner) else False
+        step_counter = 0
+
         """Training"""
         for i in range(start_episode, self.training_episodes):
-             measures = self.train_episode(domain, env, agent, nr_episode=i)
-             rewards.append(measures["reward"])
-             avg_reward = np.mean(rewards[-100:])
-             measures["avg_reward"] = avg_reward
-             if avg_reward > best_avg_reward:
-                 best_avg_reward = avg_reward
-                 print(f"{bcolors.FAIL}Yay, new best average: {best_avg_reward}{bcolors.ENDC}")
-                 if i >= self.save_from_episode:
-                    save_agent_state(i,results)
-             mlflow.log_metrics(measures, step=i)
-             results.append(measures)
+
+            if agent_is_ppo:
+                measures, step_counter = self.train_buffer(domain, env, agent, step_counter, nr_episode=i) # --> None
+            else:
+                measures = self.train_episode(domain, env, agent, nr_episode=i)
+
+            if measures != None:
+                rewards.append(measures["reward"])
+                avg_reward = np.mean(rewards[-100:])
+                measures["avg_reward"] = avg_reward
+                if avg_reward > best_avg_reward:
+                    best_avg_reward = avg_reward
+                    print(f"{bcolors.FAIL}Yay, new best average: {best_avg_reward}{bcolors.ENDC}")
+                    if i >= self.save_from_episode:
+                        save_agent_state(i,results)
+                mlflow.log_metrics(measures, step=i)
+                results.append(measures)
+
         env.close()
+        
         return self.group_measures_by_keys(results)

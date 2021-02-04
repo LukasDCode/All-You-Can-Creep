@@ -3,6 +3,7 @@ import numpy as np
 import torch as T
 import torch.nn as nn
 import torch.optim as optim
+import mlflow
 
 from .agent import Agent
 
@@ -172,16 +173,27 @@ class PPOv2Learner(Agent):
 
         super().__init__(env)
 
-        # (self, nr_actions, input_dims, alpha, fc1_dims=512, fc2_dims=512, chkpt_dir='tmp/ppo'):
         self.actor = ActorNetwork(self.nr_actions, self.nr_input_features, alpha_actor, fc1_dims=hidden_actor, fc2_dims=hidden_actor)
-        # (self, input_dims, alpha, fc1_dims=512, fc2_dims=512, chkpt_dir='tmp/ppo'):
         self.critic = CriticNetwork(self.nr_input_features, alpha_critic, fc1_dims=hidden_critic, fc2_dims=hidden_critic)
         self.memory = PPOMemory(batch_size)
 
-        self.gamma = gamma
-        self.policy_clip = policy_clip
+        self.alpha_actor = alpha_actor
+        self.alpha_critic = alpha_critic
+        self.batch_size = batch_size,
+        self.buffer_size = buffer_size
         self.n_epochs = n_epochs
+        self.gamma = gamma
         self.gae_lambda = gae_lambda
+        self.policy_clip = policy_clip
+
+        self.hidden_actor = hidden_actor
+        self.hidden_critic = hidden_critic
+
+    def get_buffersize(self):
+        return self.buffer_size
+
+    def remember(self, state, action, probs, vals, reward, done):
+        self.memory.store_memory(state, action, probs, vals, reward, done)
 
     def policy(self, state):
 
@@ -199,6 +211,79 @@ class PPOv2Learner(Agent):
 
         return action, probs, value
 
-        #return np.random.uniform(-1, 1, self.nr_actions)
+
+    def update(self):
+        """
+        Update the NN to all episodes stored in the buffer.
+        """
+
+        for _ in range(self.n_epochs):
+            state_arr, action_arr, old_prob_arr, vals_arr,\
+            reward_arr, dones_arr, batches = \
+                    self.memory.generate_batches()
+
+            values = vals_arr
+            advantage = np.zeros(len(reward_arr), dtype=np.float32)
+
+            a = np.zeros(len(reward_arr), dtype=np.float32)
+
+            for i in range(len(reward_arr)-1):
+                a[-(i+2)] = a[-(i+1)] * self.gamma * self.gae_lambda + reward_arr[-(i+2)] + self.gamma*values[-(i+1)]*(1-int(dones_arr[-(i+2)])) - values[-(i+2)]
+
+            advantage = T.tensor(a).to(self.actor.device)
+            values = T.tensor(values).to(self.actor.device)
+            for batch in batches:
+                states = T.tensor(state_arr[batch], dtype=T.float).to(self.actor.device)
+                old_probs = T.tensor(old_prob_arr[batch]).to(self.actor.device)
+                actions = T.tensor(action_arr[batch]).to(self.actor.device)
+
+                locs, scales = self.actor(states)
+                dist = T.distributions.normal.Normal(locs, scales)
+
+                critic_value = self.critic(states)
+                critic_value = T.squeeze(critic_value)
+
+                new_probs = dist.log_prob(actions)
+
+                prob_ratio = new_probs.exp() / old_probs.exp()
+
+                weighted_probs = advantage[batch].unsqueeze(1) * prob_ratio
+                
+                weighted_clipped_probs = T.clamp(prob_ratio, 1-self.policy_clip,
+                        1+self.policy_clip)*advantage[batch].unsqueeze(1)
+                
+                actor_loss = -T.min(weighted_probs, weighted_clipped_probs).mean()
+
+                returns = advantage[batch] + values[batch]
+                critic_loss = (returns-critic_value)**2
+                critic_loss = critic_loss.mean()
+                
+                total_loss = actor_loss + 0.5*critic_loss
+
+                self.actor.optimizer.zero_grad()
+                self.critic.optimizer.zero_grad()
+                total_loss.backward()
+                self.actor.optimizer.step()
+                self.critic.optimizer.step()
+
+        """
+        print("critic_value", critic_value.mean().item())
+        print("new_probs", new_probs)
+        print("prob_ratio", prob_ratio)
+        print("returns", returns.mean().item())
+        """
         
-    
+        measures = {
+            "loss": total_loss.item(),
+            "actor_loss": actor_loss.item(),
+            "critic_loss": critic_loss.item(),
+
+            "returns": returns.mean().item(),
+            "critic_value": critic_value.mean().item(),
+            # "critic_loss", critic_loss.item(),
+            # "critic_loss", critic_loss.item(),
+            # "new_probs": new_probs,
+        }
+
+        self.memory.clear_memory()
+        return measures
