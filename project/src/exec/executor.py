@@ -14,8 +14,6 @@ class Runner:
         **kwargs):
         pass
 
-
-
 DEFAULT_PARALLEL=1
 DEFAULT_BASE_ID=0
 
@@ -48,15 +46,17 @@ class Executor:
         print(f"{bcolors.WARNING}Delaying free token {worker_id}{bcolors.ENDC}")
         time.sleep(delay)
         self.tokens.put(worker_id)
+
     def error_callback(self,error, worker_id, run_id, delay=5.):
         print(f"{bcolors.FAIL}worker {worker_id} with run {run_id} failed: {error} {bcolors.ENDC}")
         self.worker_failed_counter += 1
         self.free_token_with_delay(self.worker_base_id + self.tasks_in_parallel + self.worker_failed_counter, delay)
 
-    """Asynchronoulsy executes runner.run with the given **kwargs, may block if poolsize is maxed out.
-    @Returns a future
-    """
     def submit_task(self, run_id=str(uuid4()), **kwargs):
+        """
+        Asynchronoulsy executes runner.run with the given **kwargs, may block if poolsize is maxed out. 
+        @Returns a future
+        """
         worker_id = self.tokens.get(block=True)
         print(f"{bcolors.WARNING}Reserved worker id: {worker_id}{bcolors.ENDC}")
         return self.pool.apply_async(

@@ -39,6 +39,5 @@ class Agent:
     def state_dict(self):
         return {}
 
-
     def load_state_dict(self, state_dict, only_model, strict=False):
         pass

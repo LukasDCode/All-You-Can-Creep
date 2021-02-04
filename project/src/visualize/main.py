@@ -3,7 +3,6 @@ import json
 import math
 import matplotlib.pyplot as plot
 
-
 def visualize_single(config, ):
     result_set = [json.load(file) for file in config.result_file]
     data_key = config.measure
@@ -78,7 +77,6 @@ def visualize_all(config):
     else:
         plot.show()
 
-
 def parse_config():
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', '--name',type=str,required=True,help="heading of the image")
@@ -100,7 +98,6 @@ def parse_config():
 
     return parser.parse_args()
     
-
 def main():
     config = parse_config()
     config.func(config)
