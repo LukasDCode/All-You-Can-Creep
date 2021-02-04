@@ -214,8 +214,9 @@ class PPOLearner(Agent):
                 A = 0
             A *= self.gamma * self.lambd
             A += reward + self.gamma * next_state_value * (1 - int(done)) - state_value
-            advantages.append(A.item())
-        advantages.reverse()
+            advantages.insert(0, A.item())
+            #advantages.append(A.item())
+        #advantages.reverse()
         return torch.tensor(advantages, device=self.device, dtype=torch.float32)
     
 
@@ -274,7 +275,7 @@ class PPOLearner(Agent):
                 # batch actor loss
                 prob_ratio = b_new_log_probs.exp() / b_old_log_probs.exp()
 
-                b_advantages_expanded =b_advantages.unsqueeze(1).expand(-1, self.nr_actions)
+                b_advantages_expanded =b_advantages.unsqueeze(1) #.expand(-1, self.nr_actions)
                 prob_ratio_weighted = prob_ratio * b_advantages_expanded
                 prob_ratio_weighted_clipped = prob_ratio.clamp(min=1-self.epsilon_clip, max=1+self.epsilon_clip) * b_advantages_expanded
 
@@ -287,9 +288,9 @@ class PPOLearner(Agent):
                 b_loss = b_actor_loss + b_critic_loss
 
                 # store losses in lists for measurements
-                critic_loss_list.append(b_critic_loss)
-                actor_loss_list.append(b_actor_loss)
-                loss_list.append(b_loss)
+                critic_loss_list.append(b_critic_loss.item())
+                actor_loss_list.append(b_actor_loss.item())
+                loss_list.append(b_loss.item())
                 
                 self.optimizer_act.zero_grad()
                 self.optimizer_crit.zero_grad()
@@ -298,9 +299,9 @@ class PPOLearner(Agent):
                 self.optimizer_crit.step()
 
         measures = {
-            "loss": torch.stack(loss_list).mean().item(),
-            "actor_loss": torch.stack(actor_loss_list).mean().item(),
-            "critic_loss" : torch.stack(critic_loss_list).mean().item(),
+            "loss": np.array(loss_list).mean(),
+            "actor_loss": np.array(actor_loss_list).mean(),
+            "critic_loss" : np.array(critic_loss_list).mean(),
             "advantages_std" : advantages.std().item(),
             "action_loc_std": action_locs.std().item(),
             "action_scale_avg": action_scales.mean().item(),
