@@ -4,7 +4,6 @@ import mlflow
 import numpy
 from numpy.core.fromnumeric import shape, std
 import torch
-from torch._C import device
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -145,8 +144,8 @@ class A2CLearner(Agent):
         parser.add_argument('-e', '--entropy_beta', type=float, default=DEFAULT_ENTROPY, help='the exploitation rate')
         parser.add_argument('-ef', '--entropy_fall', type=float, default=DEFAULT_ENTROPY_FALL, help='the entropy decay')
         parser.add_argument('-b', '--batch_size', type=int, default=DEFAULT_BATCH_SIZE, help='the batch size')
-        parser.add_argument('-cmin', '--scale_clamp_min', type=int, default=DEFAULT_SCALE_CLAMP_MIN, help='the minimum of the action scale clamp')
-        parser.add_argument('-cmax', '--scale_clamp_max', type=int, default=DEFAULT_SCALE_CLAMP_MAX, help='the maximum of the action scale clamp')
+        parser.add_argument('-cmin', '--scale_clamp_min', type=float, default=DEFAULT_SCALE_CLAMP_MIN, help='the minimum of the action scale clamp')
+        parser.add_argument('-cmax', '--scale_clamp_max', type=float, default=DEFAULT_SCALE_CLAMP_MAX, help='the maximum of the action scale clamp')
         return parser
 
     @staticmethod
@@ -233,7 +232,7 @@ class A2CLearner(Agent):
     """
     def policy(self, state):
         (action_locs, action_scales), _ = self.predict_policy(
-            torch.tensor([state], device=self.device, dtype=torch.float)
+            torch.tensor([state], device=self.device, dtype=torch.float32)
         )
         # print("Actions {} {}".format( action_locs, action_scales))
         m = torch.distributions.normal.Normal(action_locs, action_scales)
@@ -253,21 +252,18 @@ class A2CLearner(Agent):
      Predicts the state values.
     """       
     def predict_value(self, states):
-        states = torch.tensor(states, device=self.device, dtype=torch.float)
+        states = torch.tensor(states, device=self.device, dtype=torch.float32)
         return self.value_net(states)
 
-    def _normalized_returns(self, rewards):
+    def _discounted_returns(self, rewards):
         # Calculate and normalize discounted returns
-
         discounted_returns = []
         R = 0
         for reward in reversed(rewards):
             R = reward + self.gamma*R
             discounted_returns.append(R)
         discounted_returns.reverse()
-
-        discounted_returns = torch.tensor(discounted_returns, device=self.device, dtype=torch.float).detach()
-        return F.normalize(discounted_returns, dim=0)
+        return torch.tensor(discounted_returns, dtype=torch.float32, device=self.device)
 
     """
      Performs a learning update of the currently learned policy and value function.
@@ -279,12 +275,13 @@ class A2CLearner(Agent):
         if done:
             states, actions, rewards, next_states, dones = tuple(zip(*self.transitions))
 
-            normalized_returns = self._normalized_returns(rewards)                          # Shape([1000])
-            rewards = torch.tensor(rewards, device=self.device, dtype=torch.float)          # Shape([1000])
-            actions = torch.tensor(actions, device=self.device, dtype=torch.float)          # Shape([1000,1,9])
+            returns = self._discounted_returns(rewards)                          # Shape([1000])
+            returns = F.normalize(returns, dim=0)
+            rewards = torch.tensor(rewards, device=self.device, dtype=torch.float32)          # Shape([1000])
+            actions = torch.tensor(actions, device=self.device, dtype=torch.float32)          # Shape([1000,1,9])
             actions = actions.squeeze(1) # remove n worms dim                               # Shape([1000,9])
-            states = torch.tensor(states, device=self.device, dtype=torch.float)            # Shape[1000,64]
-            next_states = torch.tensor(next_states, device=self.device, dtype=torch.float)  # Shape[1000,64]
+            states = torch.tensor(states, device=self.device, dtype=torch.float32)            # Shape[1000,64]
+            next_states = torch.tensor(next_states, device=self.device, dtype=torch.float32)  # Shape[1000,64]
 
             (action_locs, action_scales), state_values = self.predict_policy(states)        # Shape[1000,9], Shape[1000,9], Shape[1000,1]
             state_values = state_values.squeeze(1)                                          # Shape[1000]
@@ -294,7 +291,7 @@ class A2CLearner(Agent):
             next_state_values = F.normalize(state_values, dim=0, eps=self.eps)
 
             if self.advantage == "a2c":
-                advantages = advantage_actor_critic(Rs=normalized_returns,values=state_values,)
+                advantages = advantage_actor_critic(Rs=returns,values=state_values,)
             elif self.advantage == "3step":
                 advantages = nstep(
                     n=3,
@@ -311,7 +308,7 @@ class A2CLearner(Agent):
                     next_values=next_state_values,
                 )
             elif self.advantage == "reinforce":
-                advantages = reinforce(Rs=normalized_returns,)
+                advantages = reinforce(Rs=returns,)
             else:
                 raise RuntimeError()
 
@@ -320,8 +317,12 @@ class A2CLearner(Agent):
 
             normal_distr = torch.distributions.normal.Normal(action_locs, action_scales, )
             entropy_losses = - cur_entropy_beta * normal_distr.entropy().mean(1) * advantages  # Shape [1000,9] -> Shape [1000] 
+            #entropy_losses = - cur_entropy_beta * normal_distr.entropy().sum(1) * advantages  # Shape [1000,9] -> Shape [1000] 
             policy_losses = - normal_distr.log_prob(actions).mean(1) * advantages # Shape [1000]
-            value_loss = F.mse_loss(state_values, normalized_returns)
+            #policy_losses = - normal_distr.log_prob(actions).sum(1) * advantages # Shape [1000]
+            #value_loss = F.smooth_l1_loss(state_values, returns, reduction='sum')
+            value_loss = F.mse_loss(state_values, returns)
+            print("value_loss", value_loss.item())
 
 
             entropy_loss,  policy_loss, = entropy_losses.sum(), policy_losses.sum(),
