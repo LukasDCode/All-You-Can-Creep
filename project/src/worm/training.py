@@ -58,7 +58,7 @@ class AgentRunner(Runner):
         states=[]
         while not done:
             # 1. Select action according to policy
-            action = agent.policy(state)
+            action, probs, value = agent.policy(state)
             #action = 2 * np.random.random_sample(9) - 1 #randomWorm
             #action = 2 * np.random.random_sample(2) - 1 #randomBall
             # 2. Execute selected action
