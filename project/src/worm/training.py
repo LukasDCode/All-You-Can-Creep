@@ -181,17 +181,17 @@ class AgentRunner(Runner):
         start_episode = 0
         if continue_training:
             print("Loading old training state...")
-            results = state_dict["trainer"]["results"]
+            #results = state_dict["trainer"]["results"]
             start_episode = int(state_dict["trainer"]["cur_episode"]) + 1
             print("Loaded old training state.")
 
-        def save_agent_state(episode, results):
+        def save_agent_state(episode,):
             print("Saving agent state...")
             save_path = self.result_dir / "{}_episode_{:02d}.state_dict".format(run_id, i)
             torch.save({
                 "agent": agent.state_dict(),
                 "trainer":{
-                    "results": results,
+                    #"results": results,
                     "cur_episode": episode,
                 }
             }, save_path)
@@ -223,7 +223,7 @@ class AgentRunner(Runner):
                     best_avg_reward = avg_reward
                     print(f"{bcolors.FAIL}Yay, new best average: {best_avg_reward}{bcolors.ENDC}")
                     if i >= self.save_from_episode:
-                        save_agent_state(i,results)
+                        save_agent_state(i)
                 mlflow.log_metrics(measures, step=i)
                 results.append(measures)
 
