@@ -86,7 +86,6 @@ def parameters(actor: nn.Module,critic : nn.Module):
 DEFAULT_BATCH_SIZE = 2024
 DEFAULT_BUFFER_SIZE = 20240
 DEFAULT_ALPHA = 0.0003
-DEFAULT_BETA = 0.005
 DEFAULT_EPSILON_CLIP = 0.2
 DEFAULT_LAMBDA = 0.95
 DEFAULT_EPOCH = 3
@@ -116,7 +115,6 @@ class PPOLearner(Agent):
         parser.add_argument("-bs", "--batch_size", type=int, default=DEFAULT_BATCH_SIZE)
         parser.add_argument("-buffs", "--buffer_size", type=int, default=DEFAULT_BUFFER_SIZE)
         parser.add_argument("-a", "--alpha", type=float, default=DEFAULT_ALPHA, help="Learning rate")
-        parser.add_argument("-b", "--beta", type=float, default=DEFAULT_BETA,)
         parser.add_argument("-e", "--epsilon_clip", type=float, default=DEFAULT_EPSILON_CLIP,)
         parser.add_argument("-l", "--lambd", type=float, default=DEFAULT_LAMBDA,)
         parser.add_argument("-epoch", "--epoch", type=int, default=DEFAULT_EPOCH,)
@@ -132,7 +130,6 @@ class PPOLearner(Agent):
             batch_size=DEFAULT_BATCH_SIZE,
             buffer_size=DEFAULT_BUFFER_SIZE,
             alpha=DEFAULT_ALPHA,
-            beta=DEFAULT_BETA,
             epsilon_clip=DEFAULT_EPSILON_CLIP,
             lambd=DEFAULT_LAMBDA,
             epoch=DEFAULT_EPOCH,
@@ -146,7 +143,6 @@ class PPOLearner(Agent):
             "batch_size" : batch_size,
             "buffer_size" : buffer_size,
             "alpha" : alpha,
-            "beta" : beta,
             "epsilon_clip" : epsilon_clip,
             "lambd" : lambd,
             "epoch" : epoch,
