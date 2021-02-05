@@ -16,7 +16,8 @@ You can update your conda environment with:
 
 ### Unity environment
 - We use the unity version 2019.4.16f1. 
-- Open the worm dynamic scene, delete all worms, but the first and build it for your operating system withing the folder `Unity/` and name `worm_single_environment`.
+- An mlagents on release branch 12
+- Open the worm dynamic scene, delete all worms but the first and build it for your operating system withing the folder `Unity/` and name `worm_single_environment`.
 
 ### MLFlow
 - We use mlflow to track params, measures, create graphs and upload model artifacts.
