@@ -155,6 +155,9 @@ class PPOv2Learner(Agent):
         self,
         env,
 
+        # measurements dict that is returned every episode
+        current_measures = {},
+
         # hyper params
         alpha_actor = DEFAULT_ALPHA_ACTOR,
         alpha_critic = DEFAULT_ALPHA_CRITIC,
@@ -188,6 +191,10 @@ class PPOv2Learner(Agent):
 
         self.hidden_actor = hidden_actor
         self.hidden_critic = hidden_critic
+        self.current_measures = current_measures
+
+    def get_measures(self):
+        return self.current_measures
 
     def get_buffersize(self):
         return self.buffer_size
@@ -216,6 +223,9 @@ class PPOv2Learner(Agent):
         """
         Update the NN to all episodes stored in the buffer.
         """
+
+        actor_loss_list, critic_loss_list, total_loss_list = [], [], [] # simple lists with numbers
+        loc_list, scale_list = [], [] # simple lists with numbers
 
         for _ in range(self.n_epochs):
             state_arr, action_arr, old_prob_arr, vals_arr,\
@@ -266,24 +276,21 @@ class PPOv2Learner(Agent):
                 self.actor.optimizer.step()
                 self.critic.optimizer.step()
 
-        """
-        print("critic_value", critic_value.mean().item())
-        print("new_probs", new_probs)
-        print("prob_ratio", prob_ratio)
-        print("returns", returns.mean().item())
-        """
-        
-        measures = {
-            "loss": total_loss.item(),
-            "actor_loss": actor_loss.item(),
-            "critic_loss": critic_loss.item(),
+                actor_loss_list.append(actor_loss.item())
+                critic_loss_list.append(critic_loss.item())
+                total_loss_list.append(total_loss.item())
+                loc_list.append(locs.mean().item())
+                scale_list.append(scales.mean().item())
 
-            "returns": returns.mean().item(),
-            "critic_value": critic_value.mean().item(),
-            # "critic_loss", critic_loss.item(),
-            # "critic_loss", critic_loss.item(),
-            # "new_probs": new_probs,
+        measures = {
+            "total_loss": sum(total_loss_list)/len(total_loss_list),
+            "actor_loss": sum(actor_loss_list)/len(actor_loss_list),
+            "critic_loss": sum(critic_loss_list)/len(critic_loss_list),
+
+            "loc": sum(loc_list)/len(loc_list),
+            "scale": sum(scale_list)/len(scale_list),
         }
+        self.current_measures = measures
 
         self.memory.clear_memory()
         return measures

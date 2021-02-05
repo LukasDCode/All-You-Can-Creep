@@ -50,16 +50,15 @@ class AgentRunner(Runner):
         self.upload_state_dicts = upload_state_dicts
 
     @staticmethod
-    def print_stats_on_console(nr_episode, sum_reward, time_step):
-        if nr_episode % 25 == 0:
-            print("e:", nr_episode , ", r:", sum_reward , ", i:", time_step)
+    def print_stats_on_console(nr_episode, sum_reward):
+        if nr_episode % 1 == 0:
+            print("e:", nr_episode , ", r:", sum_reward)
     
     @staticmethod
     def train_buffer(domain, env, agent, step_counter, nr_episode=0):
         state = env.reset()
         sum_reward = 0
         done = False
-        time_step = 0
         measures_dict = None
         states=[]
         # step_counter = 0
@@ -79,22 +78,24 @@ class AgentRunner(Runner):
 
             # 3. Integrate new experience into agent
             if step_counter % agent.get_buffersize() == 0:
-                measures_dict = agent.update()               
+                measures_dict = agent.update()
+            else:
+                measures_dict = agent.get_measures()              
             
             # 4 step through
             state = next_state
             states.append(state)
             sum_reward += reward
-            time_step += 1
 
-        AgentRunner.print_stats_on_console(nr_episode, sum_reward, time_step)
+        AgentRunner.print_stats_on_console(nr_episode, sum_reward)
 
         # Add domain specific measures
         if measures_dict == None:
             return {
                 **domain.evaluate(states),
+                **measures_dict,
                 "reward": sum_reward,
-                "episode":nr_episode,
+                "episode": nr_episode,
             }, step_counter
         else:
             return {
@@ -109,7 +110,6 @@ class AgentRunner(Runner):
         state = env.reset()
         sum_reward = 0
         done = False
-        time_step = 0
         measures_dict = None
         states=[]
         while not done:
@@ -130,16 +130,15 @@ class AgentRunner(Runner):
             state = next_state
             states.append(state)
             sum_reward += reward
-            time_step += 1
         
-        AgentRunner.print_stats_on_console(nr_episode, sum_reward, time_step)
+        AgentRunner.print_stats_on_console(nr_episode, sum_reward)
 
         # Add domain specific measures
         return {
             **domain.evaluate(states),
             **measures_dict,
             "reward": sum_reward,
-            "episode":nr_episode,
+            "episode": nr_episode,
         }
 
     def group_measures_by_keys(self, measure_dicts):
@@ -228,5 +227,5 @@ class AgentRunner(Runner):
                 results.append(measures)
 
         env.close()
-        
+
         return self.group_measures_by_keys(results)
