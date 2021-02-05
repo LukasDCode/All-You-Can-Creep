@@ -1,3 +1,4 @@
+from project.src.agents.a2c import DEFAULT_ACTIVATION_FKT
 import random
 import math
 import mlflow
@@ -36,13 +37,13 @@ class ActorNet(nn.Module):
     Actor NN.
     """
     
-    def __init__(self, nr_input_features, nr_actions, nr_hidden_units = 256):
+    def __init__(self, nr_input_features, nr_actions, activation, nr_hidden_units = 256):
         super().__init__()
         self.policy_base_net = nn.Sequential(
             nn.Linear(nr_input_features, nr_hidden_units),
-            nn.ReLU(),
+            PPOLearner.create_activation(activation),
             nn.Linear(nr_hidden_units, nr_hidden_units),
-            nn.ReLU()
+            PPOLearner.create_activation(activation),
         )
         self.action_head_loc = nn.Sequential( # Actor LOC-Ausgabe
             nn.Linear(nr_hidden_units, nr_actions),
@@ -65,13 +66,13 @@ class CriticNet(nn.Module):
     Critic NN.
     """
 
-    def __init__(self, nr_input_features, nr_hidden_units = 256):
+    def __init__(self, nr_input_features, activation, nr_hidden_units = 256):
         super().__init__()
         self.critic_net = nn.Sequential(
             nn.Linear(nr_input_features, nr_hidden_units),
-            nn.ReLU(),
+            PPOLearner.create_activation(activation),
             nn.Linear(nr_hidden_units, nr_hidden_units),
-            nn.ReLU(),
+            PPOLearner.create_activation(activation),
             nn.Linear(nr_hidden_units, 1),
         )
 
@@ -91,6 +92,8 @@ DEFAULT_LAMBDA = 0.95
 DEFAULT_EPOCH = 3
 DEFAULT_GAMMA = 0.995
 DEFAULT_HIDDEN_NEURONS = 512
+
+DEFAULT_ACTIVATION_FKT = "ReLu"
 
 class PPOLearner(Agent):
     """
@@ -122,7 +125,20 @@ class PPOLearner(Agent):
         parser.add_argument("-hn", "--hidden_neurons", type=int, default=DEFAULT_HIDDEN_NEURONS)
     
     @staticmethod
+    def create_activation(activation):
+      if activation == "ReLu":
+        return nn.ReLU()
+      elif activation == "sigmoid":
+        return nn.Sigmoid()
+      elif activation == "tanh":
+        return nn.Tanh()
+      else:
+        raise Exception("Invalid activation function given.")
+
+
+    @staticmethod
     def add_config_args(parser):
+        parser.add_argument('-act', '--activation', type=str, default=DEFAULT_ACTIVATION_FKT, choices=["ReLu", "sigmoid", "tanh"])
         return parser
 
     def __init__(self,
@@ -135,6 +151,7 @@ class PPOLearner(Agent):
             epoch=DEFAULT_EPOCH,
             gamma=DEFAULT_GAMMA,
             hidden_neurons=DEFAULT_HIDDEN_NEURONS,
+            activation = DEFAULT_ACTIVATION_FKT,
             only_model=False, state_dict=None,
             **kwargs,
         ):
@@ -148,6 +165,7 @@ class PPOLearner(Agent):
             "epoch" : epoch,
             "gamma" : gamma,
             "hidden_neurons" : hidden_neurons,
+            "activation" : activation
         }
         if state_dict:
           state_dict = state_dict["agent"]
@@ -166,8 +184,17 @@ class PPOLearner(Agent):
             print("Loaded state params from state dict.")
 
         self.device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda")
-        self.actor = ActorNet(self.nr_input_features, self.nr_actions).to(self.device)
-        self.critic = CriticNet(self.nr_input_features).to(self.device)
+        self.actor = ActorNet(
+          nr_actions=self.nr_actions,
+          nr_hidden_units=self.hidden_neurons,
+          nr_input_features=self.nr_input_features,
+          activation=self.activation,
+          ).to(self.device)
+        self.critic = CriticNet(
+          nr_input_features=self.nr_input_features,
+          nr_hidden_units=self.hidden_neurons,
+          activation=self.activation,
+        ).to(self.device)
         self.memory = PPOMemory(batch_size)
 
         if state_dict:
