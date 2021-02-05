@@ -21,7 +21,7 @@ from ..utils.color import bcolors
 import mlflow
 
 DEFAULT_EPISODES = 5000
-DEFAULT_SAVE_FROM_EPISODE = 0
+DEFAULT_SAVE_FROM_EPISODE = 100
 DEFAULT_RESULT_DIR = "debug"
 
 class AgentRunner(Runner):
@@ -61,7 +61,6 @@ class AgentRunner(Runner):
         done = False
         measures_dict = None
         states=[]
-        # step_counter = 0
         prob, value = None, None
         while not done:
             
@@ -78,32 +77,23 @@ class AgentRunner(Runner):
 
             # 3. Integrate new experience into agent
             if step_counter % agent.get_buffersize() == 0:
-                measures_dict = agent.update()
-            else:
-                measures_dict = agent.get_measures()              
+                agent.update()
             
             # 4 step through
             state = next_state
             states.append(state)
             sum_reward += reward
 
+        measures_dict = agent.get_measures()
         AgentRunner.print_stats_on_console(nr_episode, sum_reward)
 
         # Add domain specific measures
-        if measures_dict == None:
-            return {
-                **domain.evaluate(states),
-                **measures_dict,
-                "reward": sum_reward,
-                "episode": nr_episode,
-            }, step_counter
-        else:
-            return {
-                **domain.evaluate(states),
-                **measures_dict,
-                "reward": sum_reward,
-                "episode":nr_episode,
-            }, step_counter
+        return {
+            **domain.evaluate(states),
+            **measures_dict,
+            "reward": sum_reward,
+            "episode": nr_episode,
+        }, step_counter
 
     @staticmethod
     def train_episode(domain, env, agent, nr_episode=0):
@@ -186,7 +176,7 @@ class AgentRunner(Runner):
 
         def save_agent_state(episode,):
             print("Saving agent state...")
-            save_path = self.result_dir / "{}_episode_{:02d}.state_dict".format(run_id, i)
+            save_path = self.result_dir / "{}.state_dict".format(run_id)
             torch.save({
                 "agent": agent.state_dict(),
                 "trainer":{
@@ -214,17 +204,16 @@ class AgentRunner(Runner):
             else:
                 measures = self.train_episode(domain, env, agent, nr_episode=i)
 
-            if measures != None:
-                rewards.append(measures["reward"])
-                avg_reward = np.mean(rewards[-100:])
-                measures["avg_reward"] = avg_reward
-                if avg_reward > best_avg_reward:
-                    best_avg_reward = avg_reward
-                    print(f"{bcolors.FAIL}Yay, new best average: {best_avg_reward}{bcolors.ENDC}")
-                    if i >= self.save_from_episode:
-                        save_agent_state(i)
-                mlflow.log_metrics(measures, step=i)
-                results.append(measures)
+            rewards.append(measures["reward"])
+            avg_reward = np.mean(rewards[-100:])
+            measures["avg_reward"] = avg_reward
+            if avg_reward > best_avg_reward and i >= self.save_from_episode:
+                best_avg_reward = avg_reward
+                print(f"{bcolors.FAIL}Yay, new best average: {best_avg_reward}{bcolors.ENDC}")
+                if len(rewards) >= 100:
+                    save_agent_state(i)
+            mlflow.log_metrics(measures, step=i)
+            results.append(measures)
 
         env.close()
 
