@@ -80,11 +80,26 @@ class ActorNetwork(nn.Module):
         scales = self.action_head_scale(intermediate_step)
         return locs, scales
 
-    def save_checkpoint(self):
-        T.save(self.state_dict(), self.checkpoint_file)
+    #def save_checkpoint(self):
+    #    T.save(self.state_dict(), self.checkpoint_file)
 
-    def load_checkpoint(self):
-        self.load_state_dict(T.load(self.checkpoint_file))
+    #def load_checkpoint(self):
+    #    self.load_state_dict(T.load(self.checkpoint_file))
+    def state_dict(self):
+        state_dict = {
+            "actor": self.actor.state_dict(),
+            "action_head_loc": self.action_head_loc.state_dict(),
+            "action_head_scale": self.action_head_scale.state_dict(),
+        }
+        return state_dict
+
+    # load with model.load_state_dict(torch.load(path))
+    def load_state_dict(self, state_dict, strict=False):
+        self.actor.load_state_dict(state_dict["actor"], strict=strict,)
+        self.action_head_loc.load_state_dict(state_dict["action_head_loc"], strict=strict,)
+        self.action_head_scale.load_state_dict(state_dict["action_head_scale"], strict=strict)
+        return self
+
 
 class CriticNetwork(nn.Module):
     def __init__(self, input_dims, alpha, fc1_dims=512, fc2_dims=512,
@@ -108,11 +123,23 @@ class CriticNetwork(nn.Module):
         value = self.critic(state)
         return value
 
-    def save_checkpoint(self):
-        T.save(self.state_dict(), self.checkpoint_file)
+    #def save_checkpoint(self):
+    #    T.save(self.state_dict(), self.checkpoint_file)
 
-    def load_checkpoint(self):
-        self.load_state_dict(T.load(self.checkpoint_file))
+    #def load_checkpoint(self):
+    #    self.load_state_dict(T.load(self.checkpoint_file))
+
+    # save with  torch.save(model.state_dict(), path)
+    def state_dict(self):
+        state_dict = {
+            "critic": self.critic.state_dict(),
+        }
+        return state_dict
+
+    # load with model.load_state_dict(torch.load(path))
+    def load_state_dict(self, state_dict, strict=False):
+        self.critic.load_state_dict(state_dict["critic"], strict=strict,)
+        return self
 
 DEFAULT_ALPHA_ACTOR = 0.0003
 DEFAULT_ALPHA_CRITIC = 0.0003
@@ -150,6 +177,14 @@ class PPOv2Learner(Agent):
         parser.add_argument('-hc', '--hidden_critic', type=int, default=DEFAULT_HIDDEN_CRITIC, help='hidden layer units critic NN')
         return parser
 
+    def state_dict(self):
+        return {
+            "actor_model": self.actor.state_dict(),
+            "critic_model": self.critic.state_dict(),
+            "config":  self.config,
+            "state": {k: self.__dict__.get(k) for k in self.config}
+        }
+
     def __init__(
 
         self,
@@ -172,6 +207,8 @@ class PPOv2Learner(Agent):
         hidden_actor=DEFAULT_HIDDEN_ACTOR,
         hidden_critic=DEFAULT_HIDDEN_CRITIC,
 
+        # Loading model
+        only_model=False, state_dict = None,
         **kwargs):
 
         super().__init__(env)
@@ -191,7 +228,51 @@ class PPOv2Learner(Agent):
 
         self.hidden_actor = hidden_actor
         self.hidden_critic = hidden_critic
+        
         self.current_measures = current_measures
+
+        if state_dict:
+            state_dict = state_dict["agent"]
+
+        """Params from constructor"""
+        self.config = {
+            "alpha_actor" : alpha_actor,
+            "alpha_critic" : alpha_critic,
+            "batch_size" : batch_size,
+            "buffer_size" : buffer_size,
+            "n_epochs" : n_epochs,
+            "gamma" : gamma,
+            "gae_lambda" : gae_lambda,
+            "policy_clip" : policy_clip,
+            "hidden_actor" : hidden_actor,
+            "hidden_critic" : hidden_critic,
+        }
+        """On full state loading override initial params"""
+        if not only_model and state_dict:
+            print("Loading initial params from state dict...")
+            self.config.update(state_dict["config"])
+            print("Loaded initial params from state dict.")
+        self.__dict__.update(self.config)
+
+        """On full state loading override param state"""
+        if not only_model and state_dict:
+            print("Loaded state params from state dict.")
+            self.__dict__.update(state_dict["state"])
+            print("Loaded state params from state dict.")
+
+        """Load state dict into model"""
+        if state_dict:
+            print("Loading model...")
+            self.actor.load_state_dict(state_dict["actor_model"])
+            self.critic.load_state_dict(state_dict["critic_model"])
+            print("Loaded model.")
+
+        """Log Params"""
+        print(f"Loaded PPOv2Learner {str(self.config)}")
+        mlflow.log_params({
+            "agent": "ppo_v2",
+            **self.config,
+        })
 
     def get_measures(self):
         return self.current_measures
