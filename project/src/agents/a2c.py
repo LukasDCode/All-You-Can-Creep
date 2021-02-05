@@ -11,14 +11,13 @@ from .agent import Agent
 from .advantages import temporal_difference, advantage_actor_critic, reinforce, nstep
 
 class A2CNet(nn.Module):
-    def __init__(self, nr_input_features, nr_actions):
+    def __init__(self, nr_input_features, nr_actions, activation, nr_hidden_units = 64):
         super(A2CNet, self).__init__()
-        nr_hidden_units = 64
         self.fc_net = nn.Sequential(
             nn.Linear(nr_input_features, nr_hidden_units),
-            nn.ReLU(),
+            A2CLearner.create_activation(activation),
             nn.Linear(nr_hidden_units, nr_hidden_units),
-            nn.ReLU()
+            A2CLearner.create_activation(activation),
         )
         self.action_head_loc = nn.Sequential( # Actor LOC-Ausgabe von Policy
             nn.Linear(nr_hidden_units, nr_actions),
@@ -55,14 +54,13 @@ class A2CNet(nn.Module):
 
 
 class A2CNetSplit(nn.Module):
-    def __init__(self, nr_input_features, nr_actions):
+    def __init__(self, nr_input_features, nr_actions, activation, nr_hidden_units = 64):
         super(A2CNetSplit, self).__init__()
-        nr_hidden_units = 64
         self.policy_base_net = nn.Sequential(
             nn.Linear(nr_input_features, nr_hidden_units),
-            nn.ReLU(),
+            A2CLearner.create_activation(activation),
             nn.Linear(nr_hidden_units, nr_hidden_units),
-            nn.ReLU()
+            A2CLearner.create_activation(activation),
         )
         self.action_head_loc = nn.Sequential( # Actor LOC-Ausgabe von Policy
             nn.Linear(nr_hidden_units, nr_actions),
@@ -75,9 +73,9 @@ class A2CNetSplit(nn.Module):
 
         self.value_head = nn.Sequential( #Critic = Value-Function
             nn.Linear(nr_input_features, nr_hidden_units),
-            nn.ReLU(),
+            A2CLearner.create_activation(activation),
             nn.Linear(nr_hidden_units, nr_hidden_units),
-            nn.ReLU(),
+            A2CLearner.create_activation(activation),
             nn.Linear(nr_hidden_units,1),
         )
 
@@ -115,6 +113,7 @@ DEFAULT_SCALE_CLAMP_MAX = 1.
 
 DEFAULT_NET = "multihead"
 DEFAULT_ADVANTAGE = "a2c"
+DEFAULT_ACTIVATION_FKT = "ReLu"
 
 """
  Autonomous agent using Synchronous Actor-Critic.
@@ -152,7 +151,20 @@ class A2CLearner(Agent):
     def add_config_args(parser):
         parser.add_argument('-adv', '--advantage', type=str, default=DEFAULT_ADVANTAGE, choices=["a2c", "td", "3step", "reinforce"])
         parser.add_argument('-net', '--network', type=str, default=DEFAULT_NET, choices=["split", "multihead"])
+        parser.add_argument('-act', '--activation', type=str, default=DEFAULT_ACTIVATION_FKT, choices=["ReLu", "sigmoid", "tanh"])
         return parser
+
+    @staticmethod
+    def create_activation(activation):
+      if activation == "ReLu":
+        return nn.ReLU()
+      elif activation == "sigmoid":
+        return nn.Sigmoid()
+      elif activation == "tanh":
+        return nn.Tanh()
+      else:
+        raise Exception("Invalid activation function given.")
+
 
     def state_dict(self):
         return {
@@ -169,7 +181,7 @@ class A2CLearner(Agent):
         entropy_fall=DEFAULT_ENTROPY_FALL, batch_size=DEFAULT_BATCH_SIZE,
         scale_clamp_min=DEFAULT_SCALE_CLAMP_MIN, scale_clamp_max=DEFAULT_SCALE_CLAMP_MAX,
         # agent config
-        advantage=DEFAULT_ADVANTAGE, network=DEFAULT_NET,
+        advantage=DEFAULT_ADVANTAGE, network=DEFAULT_NET, activation=DEFAULT_ACTIVATION_FKT,
         # Loading model
         only_model=False, state_dict = None,
         **kwargs,
@@ -191,6 +203,7 @@ class A2CLearner(Agent):
             "scale_clamp_max": scale_clamp_max,
             "network": network,
             "advantage": advantage,
+            "activation": activation,
         }
         """On full state loading override initial params"""
         if not only_model and state_dict:
@@ -207,9 +220,9 @@ class A2CLearner(Agent):
 
         """Create network"""
         if(network == "multihead"):
-            self.a2c_net = A2CNet(self.nr_input_features, self.nr_actions).to(self.device)
+            self.a2c_net = A2CNet(self.nr_input_features, self.nr_actions, self.activation).to(self.device)
         else:
-            self.a2c_net = A2CNetSplit(self.nr_input_features, self.nr_actions).to(self.device)
+            self.a2c_net = A2CNetSplit(self.nr_input_features, self.nr_actions. self.activation).to(self.device)
 
         """Load state dict into model"""
         if state_dict:
