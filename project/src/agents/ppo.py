@@ -1,4 +1,3 @@
-from project.src.agents.a2c import DEFAULT_ACTIVATION_FKT
 import random
 import math
 import mlflow
