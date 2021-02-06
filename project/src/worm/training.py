@@ -105,7 +105,7 @@ class AgentRunner(Runner):
         while not done:
 
             # 1. Select action according to policy
-            action, probs, value = agent.policy(state)
+            action = agent.policy(state)
 
             # 2. Execute selected action
             try:
