@@ -334,7 +334,7 @@ class A2CLearner(Agent):
             policy_losses = - normal_distr.log_prob(actions).mean(1) * advantages # Shape [1000]
             #policy_losses = - normal_distr.log_prob(actions).sum(1) * advantages # Shape [1000]
             #value_loss = F.smooth_l1_loss(state_values, returns, reduction='sum')
-            value_loss = F.mse_loss(state_values, returns)
+            value_loss = F.mse_loss(input=state_values, target=returns) #potentially don't do reduction
             #print("value_loss", value_loss.item())
 
 

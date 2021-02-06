@@ -306,7 +306,7 @@ class PPOLearner(Agent):
                 #b_advantages = breturns - b_state_values
                 # batch critic loss, actor critic advantage
                 b_returns = b_advantages + b_state_values 
-                b_critic_loss = F.mse_loss(b_returns, b_new_state_values)
+                b_critic_loss = F.mse_loss(target=b_returns, input=b_new_state_values)
                 b_loss = b_actor_loss + b_critic_loss
 
                 # store losses in lists for measurements
