@@ -26,6 +26,7 @@ class A2CNet(nn.Module):
         self.action_head_scale = nn.Sequential( # Actor SCALE-Ausgabe von Policy
             nn.Linear(nr_hidden_units, nr_actions),
             nn.Softplus(),
+            #nn.Sigmoid(), // TODO maybe replace
         ) # Actor = Policy-Function NN
         self.value_head = nn.Linear(nr_hidden_units, 1) # Critic = Value-Function NN
 
@@ -44,15 +45,6 @@ class A2CNet(nn.Module):
         }
         return state_dict
 
-    # load with model.load_state_dict(torch.load(path))
-    def load_state_dict(self, state_dict, strict=False):
-        self.fc_net.load_state_dict(state_dict["fc_net"], strict=strict,)
-        self.action_head_loc.load_state_dict(state_dict["action_head_loc"],)
-        self.action_head_scale.load_state_dict(state_dict["action_head_scale"],)
-        self.value_head.load_state_dict(state_dict["value_head"], strict=strict, )
-        return self
-
-
 class A2CNetSplit(nn.Module):
     def __init__(self, nr_input_features, nr_actions, activation, nr_hidden_units = 64):
         super(A2CNetSplit, self).__init__()
@@ -69,6 +61,7 @@ class A2CNetSplit(nn.Module):
         self.action_head_scale = nn.Sequential( # Actor SCALE-Ausgabe von Policy
             nn.Linear(nr_hidden_units, nr_actions),
             nn.Softplus(),
+            #nn.Sigmoid(), # TODO maybe replace it
         ) # Actor = Policy-Function NN
 
         self.value_head = nn.Sequential( #Critic = Value-Function
@@ -94,20 +87,11 @@ class A2CNetSplit(nn.Module):
         }
         return state_dict
 
-    # load with model.load_state_dict(torch.load(path))
-    def load_state_dict(self, state_dict, strict=False):
-        self.policy_base_net.load_state_dict(state_dict["policy_base_net"], strict=strict,)
-        self.action_head_loc.load_state_dict(state_dict["action_head_loc"], strict=strict,)
-        self.action_head_scale.load_state_dict(state_dict["action_head_scale"], strict=strict)
-        self.value_head.load_state_dict(state_dict["value_head"], strict=strict, )
-        return self
-
-
 DEFAULT_ALPHA = 0.001
 DEFAULT_GAMMA = 0.999
 DEFAULT_ENTROPY = 1e-4
-DEFAULT_ENTROPY_FALL = 0.999
-DEFAULT_BATCH_SIZE = 10
+DEFAULT_ENTROPY_FALL = 1 
+DEFAULT_BATCH_SIZE = 1
 DEFAULT_SCALE_CLAMP_MIN = 0.01
 DEFAULT_SCALE_CLAMP_MAX = 1.
 
@@ -222,7 +206,7 @@ class A2CLearner(Agent):
         if(network == "multihead"):
             self.a2c_net = A2CNet(self.nr_input_features, self.nr_actions, self.activation).to(self.device)
         else:
-            self.a2c_net = A2CNetSplit(self.nr_input_features, self.nr_actions. self.activation).to(self.device)
+            self.a2c_net = A2CNetSplit(self.nr_input_features, self.nr_actions, self.activation).to(self.device)
 
         """Load state dict into model"""
         if state_dict:
@@ -249,7 +233,7 @@ class A2CLearner(Agent):
         )
         # print("Actions {} {}".format( action_locs, action_scales))
         m = torch.distributions.normal.Normal(action_locs, action_scales)
-        action = m.sample().detach().clamp(min=-1, max=1) # Size([1,9])
+        action = m.sample().detach().clamp(min=-1, max=1) # Size([1,9]) 
         return action.cpu().numpy() # Shape [1,action_space]
 
 
@@ -260,16 +244,9 @@ class A2CLearner(Agent):
         (action_locs, action_scales), values = self.a2c_net(states)
         action_scales = action_scales.clamp(min=self.scale_clamp_min, max=self.scale_clamp_max)
         return (action_locs, action_scales), values
-        
-    """
-     Predicts the state values.
-    """       
-    def predict_value(self, states):
-        states = torch.tensor(states, device=self.device, dtype=torch.float32)
-        return self.value_net(states)
 
     def _discounted_returns(self, rewards):
-        # Calculate and normalize discounted returns
+        # Calculate discounted returns
         discounted_returns = []
         R = 0
         for reward in reversed(rewards):
@@ -295,13 +272,12 @@ class A2CLearner(Agent):
             actions = actions.squeeze(1) # remove n worms dim                               # Shape([1000,9])
             states = torch.tensor(states, device=self.device, dtype=torch.float32)            # Shape[1000,64]
             next_states = torch.tensor(next_states, device=self.device, dtype=torch.float32)  # Shape[1000,64]
+            # TODO experiment with net size => 128
 
             (action_locs, action_scales), state_values = self.predict_policy(states)        # Shape[1000,9], Shape[1000,9], Shape[1000,1]
             state_values = state_values.squeeze(1)                                          # Shape[1000]
-            state_values = F.normalize(state_values, dim=0, eps=self.eps)
             _, next_state_values = self.predict_policy(next_states)                         # Shape[1000,1]
             next_state_values = next_state_values.squeeze(1)                                # Shape[1000]
-            next_state_values = F.normalize(state_values, dim=0, eps=self.eps)
 
             if self.advantage == "a2c":
                 advantages = advantage_actor_critic(Rs=returns,values=state_values,)
@@ -325,18 +301,19 @@ class A2CLearner(Agent):
             else:
                 raise RuntimeError()
 
-            advantages = advantages # Shape[1000] 
+            #advantages Shape[1000] 
             cur_entropy_beta = self.entropy_beta * (self.entropy_fall ** nr_episode)
+
+            # TODO maybe make use 2* scale instead of var
+            # 2* self.loc / (2 * var if var =< 0 else scale ) - log_scale - math.log(math.sqrt(2 * math.pi))
 
             normal_distr = torch.distributions.normal.Normal(action_locs, action_scales, )
             entropy_losses = - cur_entropy_beta * normal_distr.entropy().mean(1) * advantages  # Shape [1000,9] -> Shape [1000] 
-            #entropy_losses = - cur_entropy_beta * normal_distr.entropy().sum(1) * advantages  # Shape [1000,9] -> Shape [1000] 
             policy_losses = - normal_distr.log_prob(actions).mean(1) * advantages # Shape [1000]
-            #policy_losses = - normal_distr.log_prob(actions).sum(1) * advantages # Shape [1000]
+
             #value_loss = F.smooth_l1_loss(state_values, returns, reduction='sum')
             value_loss = F.mse_loss(input=state_values, target=returns) #potentially don't do reduction
             #print("value_loss", value_loss.item())
-
 
             entropy_loss,  policy_loss, = entropy_losses.sum(), policy_losses.sum(),
             loss = entropy_loss + value_loss + policy_loss
@@ -355,6 +332,7 @@ class A2CLearner(Agent):
             #print(rewards.sum().cpu().item())
             #print(measures["loss_policy"], measures["loss_entropy"],)
             #print(measures["action_scale_avg"],measures["action_scale_avg"])
+
 
             # Optimize joint batch loss
             o_step = self.batch_size 
