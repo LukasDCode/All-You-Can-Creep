@@ -57,7 +57,6 @@ class ActorNet(nn.Module):
         x = self.policy_base_net(states)
         locs = self.action_head_loc(x)
         scales = self.action_head_scale(x)
-        scales = scales.clamp(min=0.0, max=1)
         return locs, scales
     
 class CriticNet(nn.Module):
@@ -215,18 +214,15 @@ class PPOLearner(Agent):
     def policy(self, state):
         """Behavioral strategy of the agent. Maps state to action."""
         states = torch.tensor([state], dtype=torch.float32, device=self.device)
-        actions, _ = self.predict_policy(states)
+        distributions = self.predict_policy(states)
+        actions = distributions.sample().squeeze(1)
         return actions[0].detach().clone().cpu().numpy()
 
     def predict_policy(self, states):
         """Behavioral strategy of the agent. Maps states to actions, log_probs."""
-        locs,scales = self.actor(states)
+        locs, scales = self.actor(states)
         distributions = torch.distributions.normal.Normal(locs, scales)
-        actions = distributions.sample()
-        actions = actions.squeeze(1)
-        actions = actions.clamp(min=-1, max=1)
-        log_probs = distributions.log_prob(actions)
-        return actions.detach(), log_probs
+        return distributions
 
     def _compute_advantage(self, rewards, state_values, next_state_values, dones):
         list_of_tuples = list(zip(rewards, state_values, next_state_values, dones))
@@ -237,8 +233,6 @@ class PPOLearner(Agent):
             A *= self.gamma * self.lambd
             A += reward + self.gamma * next_state_value * (1 - int(done)) - state_value
             advantages.insert(0, A.item())
-            #advantages.append(A.item())
-        #advantages.reverse()
         return torch.tensor(advantages, device=self.device, dtype=torch.float32)
     
 
@@ -279,11 +273,11 @@ class PPOLearner(Agent):
         # Remove old policy values from gradient graph
         state_values = self.critic(states).detach() 
         next_state_values = self.critic(next_states).detach() 
-        _, old_log_probs = self.predict_policy(states) 
-        old_log_probs = old_log_probs.detach() #ditto
+        old_log_probs = self.predict_policy(states).log_prob(actions).detach()
 
         # compute advantages
         advantages = self._compute_advantage(rewards, state_values, next_state_values, dones) # dones
+        advantages.detach() ## super important ;(
 
         actor_loss_list, critic_loss_list, loss_list = [],[],[]
 
@@ -291,15 +285,14 @@ class PPOLearner(Agent):
             for b_states, b_state_values, b_actions, b_old_log_probs, b_advantages \
                 in self.generate_batches(states, state_values, actions, old_log_probs, advantages):
 
-                _ , b_new_log_probs = self.predict_policy(b_states)
+                b_new_log_probs = self.predict_policy(b_states).log_prob(b_actions)
                 b_new_state_values = self.critic(b_states)
 
                 # batch actor loss
                 prob_ratio = b_new_log_probs.exp() / b_old_log_probs.exp()
 
-                b_advantages_expanded =b_advantages.unsqueeze(1) #.expand(-1, self.nr_actions)
-                prob_ratio_weighted = prob_ratio * b_advantages_expanded
-                prob_ratio_weighted_clipped = prob_ratio.clamp(min=1-self.epsilon_clip, max=1+self.epsilon_clip) * b_advantages_expanded
+                prob_ratio_weighted = prob_ratio * b_advantages.unsqueeze(1)
+                prob_ratio_weighted_clipped = prob_ratio.clamp(min=1-self.epsilon_clip, max=1+self.epsilon_clip) * b_advantages.unsqueeze(1)
 
                 b_actor_loss = -torch.min(prob_ratio_weighted, prob_ratio_weighted_clipped).mean()
 

@@ -25,8 +25,8 @@ class A2CNet(nn.Module):
         )
         self.action_head_scale = nn.Sequential( # Actor SCALE-Ausgabe von Policy
             nn.Linear(nr_hidden_units, nr_actions),
-            nn.Softplus(),
-            #nn.Sigmoid(), // TODO maybe replace
+            #nn.Softplus(),
+            nn.Sigmoid(),
         ) # Actor = Policy-Function NN
         self.value_head = nn.Linear(nr_hidden_units, 1) # Critic = Value-Function NN
 
@@ -35,15 +35,6 @@ class A2CNet(nn.Module):
         # x = x.view(x.size(0), -1) # reshapes the tensor
         return (self.action_head_loc(x), self.action_head_scale(x)) ,  self.value_head(x)
 
-    # save with  torch.save(model.state_dict(), path)
-    def state_dict(self):
-        state_dict = {
-            "fc_net": self.fc_net.state_dict(),
-            "action_head_loc": self.action_head_loc.state_dict(),
-            "action_head_scale": self.action_head_scale.state_dict(),
-            "value_head": self.value_head.state_dict(),
-        }
-        return state_dict
 
 class A2CNetSplit(nn.Module):
     def __init__(self, nr_input_features, nr_actions, activation, nr_hidden_units = 64):
@@ -60,8 +51,8 @@ class A2CNetSplit(nn.Module):
         )
         self.action_head_scale = nn.Sequential( # Actor SCALE-Ausgabe von Policy
             nn.Linear(nr_hidden_units, nr_actions),
-            nn.Softplus(),
-            #nn.Sigmoid(), # TODO maybe replace it
+            #nn.Softplus(),
+            nn.Sigmoid(),
         ) # Actor = Policy-Function NN
 
         self.value_head = nn.Sequential( #Critic = Value-Function
@@ -77,15 +68,6 @@ class A2CNetSplit(nn.Module):
         # x = x.view(x.size(0), -1) # reshapes the tensor
         return (self.action_head_loc(x), self.action_head_scale(x)) ,  self.value_head(states)
 
-    # save with  torch.save(model.state_dict(), path)
-    def state_dict(self):
-        state_dict = {
-            "policy_base_net": self.policy_base_net.state_dict(),
-            "action_head_loc": self.action_head_loc.state_dict(),
-            "action_head_scale": self.action_head_scale.state_dict(),
-            "value_head": self.value_head.state_dict(),
-        }
-        return state_dict
 
 DEFAULT_ALPHA = 0.001
 DEFAULT_GAMMA = 0.999
@@ -93,11 +75,12 @@ DEFAULT_ENTROPY = 1e-4
 DEFAULT_ENTROPY_FALL = 1 
 DEFAULT_BATCH_SIZE = 1
 DEFAULT_SCALE_CLAMP_MIN = 0.01
-DEFAULT_SCALE_CLAMP_MAX = 1.
+DEFAULT_SCALE_CLAMP_MAX = 0.5
 
 DEFAULT_NET = "multihead"
 DEFAULT_ADVANTAGE = "a2c"
 DEFAULT_ACTIVATION_FKT = "ReLu"
+DEFAULT_HIDDEN_NEURONS = 64
 
 """
  Autonomous agent using Synchronous Actor-Critic.
@@ -136,6 +119,7 @@ class A2CLearner(Agent):
         parser.add_argument('-adv', '--advantage', type=str, default=DEFAULT_ADVANTAGE, choices=["a2c", "td", "3step", "reinforce"])
         parser.add_argument('-net', '--network', type=str, default=DEFAULT_NET, choices=["split", "multihead"])
         parser.add_argument('-act', '--activation', type=str, default=DEFAULT_ACTIVATION_FKT, choices=["ReLu", "sigmoid", "tanh"])
+        parser.add_argument('-hn', '--hidden_neurons', type=int, default=DEFAULT_HIDDEN_NEURONS)
         return parser
 
     @staticmethod
@@ -165,7 +149,7 @@ class A2CLearner(Agent):
         entropy_fall=DEFAULT_ENTROPY_FALL, batch_size=DEFAULT_BATCH_SIZE,
         scale_clamp_min=DEFAULT_SCALE_CLAMP_MIN, scale_clamp_max=DEFAULT_SCALE_CLAMP_MAX,
         # agent config
-        advantage=DEFAULT_ADVANTAGE, network=DEFAULT_NET, activation=DEFAULT_ACTIVATION_FKT,
+        advantage=DEFAULT_ADVANTAGE, network=DEFAULT_NET, activation=DEFAULT_ACTIVATION_FKT, hidden_neurons=DEFAULT_HIDDEN_NEURONS,
         # Loading model
         only_model=False, state_dict = None,
         **kwargs,
@@ -188,6 +172,7 @@ class A2CLearner(Agent):
             "network": network,
             "advantage": advantage,
             "activation": activation,
+            "hidden_neurons": hidden_neurons,
         }
         """On full state loading override initial params"""
         if not only_model and state_dict:
@@ -204,9 +189,9 @@ class A2CLearner(Agent):
 
         """Create network"""
         if(network == "multihead"):
-            self.a2c_net = A2CNet(self.nr_input_features, self.nr_actions, self.activation).to(self.device)
+            self.a2c_net = A2CNet(self.nr_input_features, self.nr_actions, self.activation, nr_hidden_units=hidden_neurons).to(self.device)
         else:
-            self.a2c_net = A2CNetSplit(self.nr_input_features, self.nr_actions, self.activation).to(self.device)
+            self.a2c_net = A2CNetSplit(self.nr_input_features, self.nr_actions, self.activation, nr_hidden_units=hidden_neurons).to(self.device)
 
         """Load state dict into model"""
         if state_dict:
@@ -233,7 +218,7 @@ class A2CLearner(Agent):
         )
         # print("Actions {} {}".format( action_locs, action_scales))
         m = torch.distributions.normal.Normal(action_locs, action_scales)
-        action = m.sample().detach().clamp(min=-1, max=1) # Size([1,9]) 
+        action = m.sample().detach() 
         return action.cpu().numpy() # Shape [1,action_space]
 
 
@@ -242,7 +227,8 @@ class A2CLearner(Agent):
     """       
     def predict_policy(self, states):
         (action_locs, action_scales), values = self.a2c_net(states)
-        action_scales = action_scales.clamp(min=self.scale_clamp_min, max=self.scale_clamp_max)
+        # we can clamp the action scales, but do not have to, by setting them to 0 and int max
+        action_scales = action_scales.clamp(min=self.scale_clamp_min, max=self.scale_clamp_max) 
         return (action_locs, action_scales), values
 
     def _discounted_returns(self, rewards):
@@ -266,13 +252,12 @@ class A2CLearner(Agent):
             states, actions, rewards, next_states, dones = tuple(zip(*self.transitions))
 
             returns = self._discounted_returns(rewards)                          # Shape([1000])
-            returns = F.normalize(returns, dim=0)
+            #returns = F.normalize(returns, dim=0)
             rewards = torch.tensor(rewards, device=self.device, dtype=torch.float32)          # Shape([1000])
             actions = torch.tensor(actions, device=self.device, dtype=torch.float32)          # Shape([1000,1,9])
             actions = actions.squeeze(1) # remove n worms dim                               # Shape([1000,9])
             states = torch.tensor(states, device=self.device, dtype=torch.float32)            # Shape[1000,64]
             next_states = torch.tensor(next_states, device=self.device, dtype=torch.float32)  # Shape[1000,64]
-            # TODO experiment with net size => 128
 
             (action_locs, action_scales), state_values = self.predict_policy(states)        # Shape[1000,9], Shape[1000,9], Shape[1000,1]
             state_values = state_values.squeeze(1)                                          # Shape[1000]
@@ -301,11 +286,18 @@ class A2CLearner(Agent):
             else:
                 raise RuntimeError()
 
-            #advantages Shape[1000] 
+            # detaching the advantage is important to avoid any gradient from the policy net to leak over to the value net
+            advantages = advantages.detach() #Shape[1000] 
+
             cur_entropy_beta = self.entropy_beta * (self.entropy_fall ** nr_episode)
 
-            # TODO maybe make use 2* scale instead of var
-            # 2* self.loc / (2 * var if var =< 0 else scale ) - log_scale - math.log(math.sqrt(2 * math.pi))
+            # this is the log prob of the normal distribution
+            # (loc - self.loc )*2 / (2 * var) - log_scale - math.log(math.sqrt(2 * math.pi))
+            # when confidence in an action rises and scale falls, 
+            #   the gradient of var becomes exponentially smaller,
+            #   the gradient of loc  becomes linearilly smaller
+            # => this may result in unstable behaviour, we could modify the log prob to divide by 2 scale, to get stable gradients
+            # => or introduce a lower bound for the scale
 
             normal_distr = torch.distributions.normal.Normal(action_locs, action_scales, )
             entropy_losses = - cur_entropy_beta * normal_distr.entropy().mean(1) * advantages  # Shape [1000,9] -> Shape [1000] 
@@ -323,16 +315,15 @@ class A2CLearner(Agent):
                 "loss_entropy": entropy_loss.item(),
                 "loss_value" : value_loss.item(),
                 "advantages_std" : advantages.std().item(),
+                "advantages_avg" : advantages.mean().item(),
                 "action_loc_std": action_locs.std().item(),
+                "action_loc_avg": action_locs.mean().item(),
                 "action_scale_avg": action_scales.mean().item(),
                 "action_scale_std": action_scales.std().item(),
                 "state_value_avg": state_values.mean().item(),
                 "state_value_std": state_values.std().item(),
+                "returns_avg" : returns.mean().item(),
             }
-            #print(rewards.sum().cpu().item())
-            #print(measures["loss_policy"], measures["loss_entropy"],)
-            #print(measures["action_scale_avg"],measures["action_scale_avg"])
-
 
             # Optimize joint batch loss
             o_step = self.batch_size 
