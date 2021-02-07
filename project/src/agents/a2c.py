@@ -105,21 +105,21 @@ class A2CLearner(Agent):
 
     @staticmethod
     def add_hyper_param_args(parser):
-        parser.add_argument('-a','--alpha', type=float, default=DEFAULT_ALPHA, help='the learning rate')
-        parser.add_argument('-g','--gamma', type=float, default=DEFAULT_GAMMA , help='the discount factor for rewards')
-        parser.add_argument('-e', '--entropy_beta', type=float, default=DEFAULT_ENTROPY, help='the exploitation rate')
-        parser.add_argument('-ef', '--entropy_fall', type=float, default=DEFAULT_ENTROPY_FALL, help='the entropy decay')
-        parser.add_argument('-b', '--batch_size', type=int, default=DEFAULT_BATCH_SIZE, help='the batch size')
-        parser.add_argument('-cmin', '--scale_clamp_min', type=float, default=DEFAULT_SCALE_CLAMP_MIN, help='the minimum of the action scale clamp')
-        parser.add_argument('-cmax', '--scale_clamp_max', type=float, default=DEFAULT_SCALE_CLAMP_MAX, help='the maximum of the action scale clamp')
+        parser.add_argument('-a','--alpha', type=float, default=DEFAULT_ALPHA, help='Initial learning rate for AdamOptimizer.')
+        parser.add_argument('-g','--gamma', type=float, default=DEFAULT_GAMMA , help='Discount factor for rewards, future rewards should be weight less.')
+        parser.add_argument('-e', '--entropy_beta', type=float, default=DEFAULT_ENTROPY, help='Factor for entropy term, how strong the policy space is smoothed.')
+        parser.add_argument('-ef', '--entropy_fall', type=float, default=DEFAULT_ENTROPY_FALL, help='Entropy decay over time.')
+        parser.add_argument('-b', '--batch_size', type=int, default=DEFAULT_BATCH_SIZE, help='Frequency of gradient application, every n episodes.')
+        parser.add_argument('-cmin', '--scale_clamp_min', type=float, default=DEFAULT_SCALE_CLAMP_MIN, help='Minimum of the action scale clamp.')
+        parser.add_argument('-cmax', '--scale_clamp_max', type=float, default=DEFAULT_SCALE_CLAMP_MAX, help='Maximum of the action scale clamp.')
         return parser
 
     @staticmethod
     def add_config_args(parser):
-        parser.add_argument('-adv', '--advantage', type=str, default=DEFAULT_ADVANTAGE, choices=["a2c", "td", "3step", "reinforce"])
-        parser.add_argument('-net', '--network', type=str, default=DEFAULT_NET, choices=["split", "multihead"])
-        parser.add_argument('-act', '--activation', type=str, default=DEFAULT_ACTIVATION_FKT, choices=["ReLu", "sigmoid", "tanh"])
-        parser.add_argument('-hn', '--hidden_neurons', type=int, default=DEFAULT_HIDDEN_NEURONS)
+        parser.add_argument('-adv', '--advantage', type=str, default=DEFAULT_ADVANTAGE, choices=["a2c", "td", "3step", "reinforce"], help='The chosen advantage, default a2c.')
+        parser.add_argument('-net', '--network', type=str, default=DEFAULT_NET, choices=["split", "multihead"], help='Splithead uses two different nets for actor and critic, Multihead on one.')
+        parser.add_argument('-act', '--activation', type=str, default=DEFAULT_ACTIVATION_FKT, choices=["ReLu", "sigmoid", "tanh"], help='Activation function for hidden layers.')
+        parser.add_argument('-hn', '--hidden_neurons', type=int, default=DEFAULT_HIDDEN_NEURONS, help="Number neurons in hidden layers.")
         return parser
 
     @staticmethod
@@ -216,7 +216,6 @@ class A2CLearner(Agent):
         (action_locs, action_scales), _ = self.predict_policy(
             torch.tensor([state], device=self.device, dtype=torch.float32)
         )
-        # print("Actions {} {}".format( action_locs, action_scales))
         m = torch.distributions.normal.Normal(action_locs, action_scales)
         action = m.sample().detach() 
         return action.cpu().numpy() # Shape [1,action_space]
@@ -252,7 +251,6 @@ class A2CLearner(Agent):
             states, actions, rewards, next_states, dones = tuple(zip(*self.transitions))
 
             returns = self._discounted_returns(rewards)                          # Shape([1000])
-            #returns = F.normalize(returns, dim=0)
             rewards = torch.tensor(rewards, device=self.device, dtype=torch.float32)          # Shape([1000])
             actions = torch.tensor(actions, device=self.device, dtype=torch.float32)          # Shape([1000,1,9])
             actions = actions.squeeze(1) # remove n worms dim                               # Shape([1000,9])
