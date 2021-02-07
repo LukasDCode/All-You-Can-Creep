@@ -206,7 +206,7 @@ class AgentRunner(Runner):
 
             rewards.append(measures["reward"])
             avg_reward = np.mean(rewards[-100:])
-            measures["avg_reward"] = avg_reward
+            measures["reward_avg"] = avg_reward
             if avg_reward > best_avg_reward and i >= self.save_from_episode:
                 best_avg_reward = avg_reward
                 print(f"{bcolors.FAIL}Yay, new best average: {best_avg_reward}{bcolors.ENDC}")
