@@ -14,24 +14,30 @@
 
 [Environment Exec](https://github.com/Unity-Technologies/ml-agents/blob/master/docs/Learning-Environment-Executable.md)
 
-# Worm Environment
+# Work Distribution
 
-## Observation Space
-
-| Index | Purpose                      | Body Part             | Note                                                                        |
-| ----- | ---------------------------- | --------------------- | --------------------------------------------------------------------------- |
-| 0     | distance to front            | whole Worm            | measuring distance to the next object straight ahead of the worm, max is 10 |
-| 1     | speed to target              | whole Worm            |                                                                             |
-| 2     | rotation of orientation cube | whole Worm            | in degree divided by 180                                                    |
-| 3     | "from-to-rotation"           | whole Worm            |                                                                             |
-| 4     | distance to target           | whole Worm            |                                                                             |
-| ----  | ----                         | ----                  | ----                                                                        |
-| 5     | touching ground              | body segment or joint | boolean if this body part is touching the ground or not                     |
-| 6     | speed of body part           | body segment or joint |                                                                             |
-| 7     | ankle speed                  | body segment or joint |                                                                             |
-| 8     | inverse transform direction  | body segment          |                                                                             |
-| 9     | local rotation               | body segment          |                                                                             |
-| 10    | ankle of joint               | joint                 |                                                                             |
-
-Indices 5 to 10 are repeated for every body part or joint respectively.
-Further info can be taken from the "WormAgent.cs" located in "/ml-agents/Project/Assets/ML-Agents/Examples/Worm/Scripts/WormAgent.cs"
+| Topic                 |       Name      |                                   Info |
+| --------------------- | :-------------: | -------------------------------------: |
+| A2C                   |                 |                                        |
+| Split- & Multihead NN |      Sofie      |                                        |
+| Activation            |    Balthasar    | Sigmoid, Softplus, Softmax, TanH, ReLu |
+| Min-Max-Clamping      |    Balthasar    |                                        |
+| Loss & Entropy        |    Balthasar    |                                        |
+| Advantages            |      Sofie      |             A2C, TD, 3-Step, Reinforce |
+| Return                |      Sofie      |                                        |
+| A2C vs A3C            |      Sofie      |                                        |
+| -------------         | :-------------: |                                 -----: |
+| PPO                   |                 |                                        |
+|                       |                 |                                        |
+|                       |                 |                                        |
+|                       |                 |                                        |
+|                       |                 |                                        |
+|                       |                 |                                        |
+|                       |                 |                                        |
+|                       |                 |                                        |
+| -------------         | :-------------: |                                 -----: |
+| Slurm                 |      Denny      |                           Slurm Runner |
+| Parameter Search      |      Sofie      |     Grid Search, Evolutional Algorithm |
+| Environments + Unity  |      Lukas      |                                        |
+| Ml-Flow               |    Balthasar    |                    Measures, Artifacts |
+| Save and Load Models  |    Balthasar    |                                        |
