@@ -16,28 +16,27 @@
 
 # Work Distribution
 
-| Topic                 |       Name      |                                   Info |
-| --------------------- | :-------------: | -------------------------------------: |
-| A2C                   |                 |                                        |
-| Split- & Multihead NN |      Sofie      |                                        |
-| Activation            |    Balthasar    | Sigmoid, Softplus, Softmax, TanH, ReLu |
-| Min-Max-Clamping      |    Balthasar    |                                        |
-| Loss & Entropy        |    Balthasar    |                                        |
-| Advantages            |      Sofie      |             A2C, TD, 3-Step, Reinforce |
-| Return                |      Sofie      |                                        |
-| A2C vs A3C            |      Sofie      |                                        |
-| -------------         | :-------------: |                                 -----: |
-| PPO                   |                 |                                        |
-|                       |                 |                                        |
-|                       |                 |                                        |
-|                       |                 |                                        |
-|                       |                 |                                        |
-|                       |                 |                                        |
-|                       |                 |                                        |
-|                       |                 |                                        |
-| -------------         | :-------------: |                                 -----: |
-| Slurm                 |      Denny      |                           Slurm Runner |
-| Parameter Search      |      Sofie      |     Grid Search, Evolutional Algorithm |
-| Environments + Unity  |      Lukas      |                                        |
-| Ml-Flow               |    Balthasar    |                    Measures, Artifacts |
-| Save and Load Models  |    Balthasar    |                                        |
+| Topic                     |    Name   |                                   Info |
+| ------------------------- | :-------: | -------------------------------------: |
+| A2C                       |           |                                        |
+| Split- & Multihead NN     |   Sofie   |                                        |
+| Activation                | Balthasar | Sigmoid, Softplus, Softmax, TanH, ReLu |
+| Min-Max-Clamping          | Balthasar |                                        |
+| Loss & Entropy            | Balthasar |                                        |
+| Advantages                |   Sofie   |             A2C, TD, 3-Step, Reinforce |
+| Return                    |   Sofie   |                                        |
+| A2C vs A3C                |   Sofie   |                                        |
+| -----                     |   -----   |                                  ----- |
+| PPO                       |           |                                        |
+| Actor & Critic NN         |   Lukas   |                                        |
+| Memory, Buffer, Batches   |   Lukas   |                                        |
+| Hyperparameter            |   Denny   |                                        |
+| Reward                    |   Denny   |                                        |
+| log_prob & prob_ratio     |   Denny   |                                        |
+| weighted_probs & clipping |   Lukas   |                                        |
+| -----                     |   -----   |                                  ----- |
+| Slurm                     |   Denny   |                           Slurm Runner |
+| Parameter Search          |   Sofie   |     Grid Search, Evolutional Algorithm |
+| Environments + Unity      |   Lukas   |                                        |
+| Ml-Flow                   | Balthasar |                    Measures, Artifacts |
+| Save and Load Models      | Balthasar |                                        |
