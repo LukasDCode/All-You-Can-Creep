@@ -35,15 +35,6 @@ class A2CNet(nn.Module):
         # x = x.view(x.size(0), -1) # reshapes the tensor
         return (self.action_head_loc(x), self.action_head_scale(x)) ,  self.value_head(x)
 
-    # save with  torch.save(model.state_dict(), path)
-    def state_dict(self):
-        state_dict = {
-            "fc_net": self.fc_net.state_dict(),
-            "action_head_loc": self.action_head_loc.state_dict(),
-            "action_head_scale": self.action_head_scale.state_dict(),
-            "value_head": self.value_head.state_dict(),
-        }
-        return state_dict
 
 class A2CNetSplit(nn.Module):
     def __init__(self, nr_input_features, nr_actions, activation, nr_hidden_units = 64):
@@ -77,15 +68,6 @@ class A2CNetSplit(nn.Module):
         # x = x.view(x.size(0), -1) # reshapes the tensor
         return (self.action_head_loc(x), self.action_head_scale(x)) ,  self.value_head(states)
 
-    # save with  torch.save(model.state_dict(), path)
-    def state_dict(self):
-        state_dict = {
-            "policy_base_net": self.policy_base_net.state_dict(),
-            "action_head_loc": self.action_head_loc.state_dict(),
-            "action_head_scale": self.action_head_scale.state_dict(),
-            "value_head": self.value_head.state_dict(),
-        }
-        return state_dict
 
 DEFAULT_ALPHA = 0.001
 DEFAULT_GAMMA = 0.999
@@ -329,10 +311,6 @@ class A2CLearner(Agent):
                 "state_value_avg": state_values.mean().item(),
                 "state_value_std": state_values.std().item(),
             }
-            #print(rewards.sum().cpu().item())
-            #print(measures["loss_policy"], measures["loss_entropy"],)
-            #print(measures["action_scale_avg"],measures["action_scale_avg"])
-
 
             # Optimize joint batch loss
             o_step = self.batch_size 
