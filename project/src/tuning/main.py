@@ -4,9 +4,9 @@ from ..worm.domain import WormDomain
 from .EAsimple import EAsimple
 from .Gridsearch import Gridsearch
 from ..exec.executor import Executor
-from ..agents.a2c import A2CLearner, 
-from ..agents.ppo import PPOLearner,
-from ..agents.ppo_v2 import PPOv2Learner,
+from ..agents.a2c import A2CLearner 
+from ..agents.ppo import PPOLearner
+from ..agents.ppo_v2 import PPOv2Learner
 import mlflow
 
 def create_parser():
