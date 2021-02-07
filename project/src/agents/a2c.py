@@ -252,13 +252,12 @@ class A2CLearner(Agent):
             states, actions, rewards, next_states, dones = tuple(zip(*self.transitions))
 
             returns = self._discounted_returns(rewards)                          # Shape([1000])
-            returns = F.normalize(returns, dim=0)
+            #returns = F.normalize(returns, dim=0)
             rewards = torch.tensor(rewards, device=self.device, dtype=torch.float32)          # Shape([1000])
             actions = torch.tensor(actions, device=self.device, dtype=torch.float32)          # Shape([1000,1,9])
             actions = actions.squeeze(1) # remove n worms dim                               # Shape([1000,9])
             states = torch.tensor(states, device=self.device, dtype=torch.float32)            # Shape[1000,64]
             next_states = torch.tensor(next_states, device=self.device, dtype=torch.float32)  # Shape[1000,64]
-            # TODO experiment with net size => 128
 
             (action_locs, action_scales), state_values = self.predict_policy(states)        # Shape[1000,9], Shape[1000,9], Shape[1000,1]
             state_values = state_values.squeeze(1)                                          # Shape[1000]
@@ -287,7 +286,9 @@ class A2CLearner(Agent):
             else:
                 raise RuntimeError()
 
-            #advantages Shape[1000] 
+            # detaching the advantage is important to avoid any gradient from the policy net to leak over to the value net
+            advantages = advantages.detach() #Shape[1000] 
+
             cur_entropy_beta = self.entropy_beta * (self.entropy_fall ** nr_episode)
 
             # TODO maybe make use 2* scale instead of var
