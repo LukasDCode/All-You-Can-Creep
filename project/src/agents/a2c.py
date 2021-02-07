@@ -291,8 +291,13 @@ class A2CLearner(Agent):
 
             cur_entropy_beta = self.entropy_beta * (self.entropy_fall ** nr_episode)
 
-            # TODO maybe make use 2* scale instead of var
-            # 2* self.loc / (2 * var if var =< 0 else scale ) - log_scale - math.log(math.sqrt(2 * math.pi))
+            # this is the log prob of the normal distribution
+            # (loc - self.loc )*2 / (2 * var) - log_scale - math.log(math.sqrt(2 * math.pi))
+            # when confidence in an action rises and scale falls, 
+            #   the gradient of var becomes exponentially smaller,
+            #   the gradient of loc  becomes linearilly smaller
+            # => this may result in unstable behaviour, we could modify the log prob to divide by 2 scale, to get stable gradients
+            # => or introduce a lower bound for the scale
 
             normal_distr = torch.distributions.normal.Normal(action_locs, action_scales, )
             entropy_losses = - cur_entropy_beta * normal_distr.entropy().mean(1) * advantages  # Shape [1000,9] -> Shape [1000] 
