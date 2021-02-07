@@ -57,7 +57,6 @@ class ActorNet(nn.Module):
         x = self.policy_base_net(states)
         locs = self.action_head_loc(x)
         scales = self.action_head_scale(x)
-        scales = scales.clamp(min=0.0, max=1)
         return locs, scales
     
 class CriticNet(nn.Module):
@@ -237,8 +236,6 @@ class PPOLearner(Agent):
             A *= self.gamma * self.lambd
             A += reward + self.gamma * next_state_value * (1 - int(done)) - state_value
             advantages.insert(0, A.item())
-            #advantages.append(A.item())
-        #advantages.reverse()
         return torch.tensor(advantages, device=self.device, dtype=torch.float32)
     
 
@@ -284,6 +281,7 @@ class PPOLearner(Agent):
 
         # compute advantages
         advantages = self._compute_advantage(rewards, state_values, next_state_values, dones) # dones
+        advantages.detach() ## super important ;(
 
         actor_loss_list, critic_loss_list, loss_list = [],[],[]
 
@@ -297,9 +295,8 @@ class PPOLearner(Agent):
                 # batch actor loss
                 prob_ratio = b_new_log_probs.exp() / b_old_log_probs.exp()
 
-                b_advantages_expanded =b_advantages.unsqueeze(1) #.expand(-1, self.nr_actions)
-                prob_ratio_weighted = prob_ratio * b_advantages_expanded
-                prob_ratio_weighted_clipped = prob_ratio.clamp(min=1-self.epsilon_clip, max=1+self.epsilon_clip) * b_advantages_expanded
+                prob_ratio_weighted = prob_ratio * b_advantages.unsqueeze(1)
+                prob_ratio_weighted_clipped = prob_ratio.clamp(min=1-self.epsilon_clip, max=1+self.epsilon_clip) * b_advantages.unsqueeze(1)
 
                 b_actor_loss = -torch.min(prob_ratio_weighted, prob_ratio_weighted_clipped).mean()
 
