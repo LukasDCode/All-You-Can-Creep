@@ -16,6 +16,10 @@
 
 # Work Distribution
 
+All coding has been done by at least two people at the same time in Pair-Programming.
+Therefore, we used [Visual Studio Code](https://code.visualstudio.com/) with [Live Share](https://visualstudio.microsoft.com/services/live-share/), so everyone could participate and write simultaneously.
+Because at least two people (sometimes 3 or even all 4) have been coding at the same time, everyone has a basic understanding of A2C and PPO. As requested, we divided the different tasks among us in form of experts. The division can be seen in the following table:
+
 | Topic                     |    Name   |                                   Info |
 | ------------------------- | :-------: | -------------------------------------: |
 | A2C                       |           |                                        |
