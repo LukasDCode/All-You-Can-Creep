@@ -214,18 +214,15 @@ class PPOLearner(Agent):
     def policy(self, state):
         """Behavioral strategy of the agent. Maps state to action."""
         states = torch.tensor([state], dtype=torch.float32, device=self.device)
-        actions, _ = self.predict_policy(states)
+        distributions = self.predict_policy(states)
+        actions = distributions.sample().squeeze(1)
         return actions[0].detach().clone().cpu().numpy()
 
     def predict_policy(self, states):
         """Behavioral strategy of the agent. Maps states to actions, log_probs."""
-        locs,scales = self.actor(states)
+        locs, scales = self.actor(states)
         distributions = torch.distributions.normal.Normal(locs, scales)
-        actions = distributions.sample()
-        actions = actions.squeeze(1)
-        actions = actions.clamp(min=-1, max=1)
-        log_probs = distributions.log_prob(actions)
-        return actions.detach(), log_probs
+        return distributions
 
     def _compute_advantage(self, rewards, state_values, next_state_values, dones):
         list_of_tuples = list(zip(rewards, state_values, next_state_values, dones))
@@ -276,8 +273,7 @@ class PPOLearner(Agent):
         # Remove old policy values from gradient graph
         state_values = self.critic(states).detach() 
         next_state_values = self.critic(next_states).detach() 
-        _, old_log_probs = self.predict_policy(states) 
-        old_log_probs = old_log_probs.detach() #ditto
+        old_log_probs = self.predict_policy(states).log_prob(actions).detach()
 
         # compute advantages
         advantages = self._compute_advantage(rewards, state_values, next_state_values, dones) # dones
@@ -289,7 +285,7 @@ class PPOLearner(Agent):
             for b_states, b_state_values, b_actions, b_old_log_probs, b_advantages \
                 in self.generate_batches(states, state_values, actions, old_log_probs, advantages):
 
-                _ , b_new_log_probs = self.predict_policy(b_states)
+                b_new_log_probs = self.predict_policy(b_states).log_prob(b_actions)
                 b_new_state_values = self.critic(b_states)
 
                 # batch actor loss
