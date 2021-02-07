@@ -50,11 +50,15 @@ class PPOMemory:
         self.vals = []
 
 class ActorNetwork(nn.Module):
+    """
+    Actor Network has 1 base NN with 2 different heads.
+    One head returns the location of the Normal distribution
+    the other head returns the scale of the Normal distribution.
+    """
     def __init__(self, n_actions, input_dims, alpha,
-            fc1_dims=512, fc2_dims=512, chkpt_dir='tmp/ppo'):
+            fc1_dims=512, fc2_dims=512, actor_scale_head='softplus'):
         super(ActorNetwork, self).__init__()
 
-        self.checkpoint_file = os.path.join(chkpt_dir, 'actor_torch_ppo')
         self.actor = nn.Sequential(
                 nn.Linear(input_dims, fc1_dims),
                 nn.ReLU(),
@@ -65,10 +69,25 @@ class ActorNetwork(nn.Module):
             nn.Linear(fc2_dims, n_actions),
             nn.Tanh(),
         )
-        self.action_head_scale = nn.Sequential(
-            nn.Linear(fc2_dims, n_actions),
-            nn.Softmax(dim=-1),
-        )
+
+        self.action_head_scale = None
+        if actor_scale_head == 'softmax':
+            self.action_head_scale = nn.Sequential(
+                nn.Linear(fc2_dims, n_actions),
+                nn.Softmax(dim=-1),
+            )   
+        elif actor_scale_head == 'softplus':
+            self.action_head_scale = nn.Sequential(
+                nn.Linear(fc2_dims, n_actions),
+                nn.Softplus(),
+            )
+        elif actor_scale_head == 'sigmoid':
+            self.action_head_scale = nn.Sequential(
+                nn.Linear(fc2_dims, n_actions),
+                nn.Sigmoid(),
+            )
+        else:
+            raise Exception("Invalid scale activation function given.")
 
         self.optimizer = optim.Adam(self.parameters(), lr=alpha)
         self.device = T.device('cpu')
@@ -80,11 +99,6 @@ class ActorNetwork(nn.Module):
         scales = self.action_head_scale(intermediate_step)
         return locs, scales
 
-    #def save_checkpoint(self):
-    #    T.save(self.state_dict(), self.checkpoint_file)
-
-    #def load_checkpoint(self):
-    #    self.load_state_dict(T.load(self.checkpoint_file))
     def state_dict(self):
         state_dict = {
             "actor": self.actor.state_dict(),
@@ -93,7 +107,6 @@ class ActorNetwork(nn.Module):
         }
         return state_dict
 
-    # load with model.load_state_dict(torch.load(path))
     def load_state_dict(self, state_dict, strict=False):
         self.actor.load_state_dict(state_dict["actor"], strict=strict,)
         self.action_head_loc.load_state_dict(state_dict["action_head_loc"], strict=strict,)
@@ -102,11 +115,12 @@ class ActorNetwork(nn.Module):
 
 
 class CriticNetwork(nn.Module):
-    def __init__(self, input_dims, alpha, fc1_dims=512, fc2_dims=512,
-            chkpt_dir='tmp/ppo'):
+    """
+    Critic Network returns 1 number evaluating the passed on state.
+    """
+    def __init__(self, input_dims, alpha, fc1_dims=512, fc2_dims=512):
         super(CriticNetwork, self).__init__()
 
-        self.checkpoint_file = os.path.join(chkpt_dir, 'critic_torch_ppo')
         self.critic = nn.Sequential(
                 nn.Linear(input_dims, fc1_dims),
                 nn.ReLU(),
@@ -123,20 +137,12 @@ class CriticNetwork(nn.Module):
         value = self.critic(state)
         return value
 
-    #def save_checkpoint(self):
-    #    T.save(self.state_dict(), self.checkpoint_file)
-
-    #def load_checkpoint(self):
-    #    self.load_state_dict(T.load(self.checkpoint_file))
-
-    # save with  torch.save(model.state_dict(), path)
     def state_dict(self):
         state_dict = {
             "critic": self.critic.state_dict(),
         }
         return state_dict
 
-    # load with model.load_state_dict(torch.load(path))
     def load_state_dict(self, state_dict, strict=False):
         self.critic.load_state_dict(state_dict["critic"], strict=strict,)
         return self
@@ -152,6 +158,7 @@ DEFAULT_POLICY_CLIP = 0.2
 
 DEFAULT_HIDDEN_ACTOR = 512
 DEFAULT_HIDDEN_CRITIC = 512
+DEFAULT_ACTOR_SCALE_HEAD = 'softplus'
 
 class PPOv2Learner(Agent):
 
@@ -167,7 +174,7 @@ class PPOv2Learner(Agent):
         parser.add_argument('-bus', '--buffer_size', type=int, default=DEFAULT_BUFFER_SIZE, help='Buffer size, should be multiple batch size')
         parser.add_argument('-epochs','--n_epochs', type=int, default=DEFAULT_EPOCHS, help='Epochs of updates')
         parser.add_argument('-g','--gamma', type=float, default=DEFAULT_GAMMA, help='Discount factor for rewards')
-        parser.add_argument('-gae','--gae_lambda', type=float, default=DEFAULT_GAE_LAMBDA, help='TODO')
+        parser.add_argument('-gae','--gae_lambda', type=float, default=DEFAULT_GAE_LAMBDA, help='Diminishing Gamma in discounting')
         parser.add_argument('-clip','--policy_clip', type=float, default=DEFAULT_POLICY_CLIP, help='TODO')
         return parser
 
@@ -175,6 +182,7 @@ class PPOv2Learner(Agent):
     def add_config_args(parser):
         parser.add_argument('-ha', '--hidden_actor', type=int, default=DEFAULT_HIDDEN_ACTOR, help='hidden layer units actor NN')
         parser.add_argument('-hc', '--hidden_critic', type=int, default=DEFAULT_HIDDEN_CRITIC, help='hidden layer units critic NN')
+        parser.add_argument('-ash', '--actor_scale_head', type=str, default=DEFAULT_ACTOR_SCALE_HEAD, help='activation function for scale head from actor NN')
         return parser
 
     def state_dict(self):
@@ -206,6 +214,7 @@ class PPOv2Learner(Agent):
         # config params
         hidden_actor=DEFAULT_HIDDEN_ACTOR,
         hidden_critic=DEFAULT_HIDDEN_CRITIC,
+        actor_scale_head=DEFAULT_ACTOR_SCALE_HEAD,
 
         # Loading model
         only_model=False, state_dict = None,
@@ -213,8 +222,6 @@ class PPOv2Learner(Agent):
 
         super().__init__(env)
 
-        self.actor = ActorNetwork(self.nr_actions, self.nr_input_features, alpha_actor, fc1_dims=hidden_actor, fc2_dims=hidden_actor)
-        self.critic = CriticNetwork(self.nr_input_features, alpha_critic, fc1_dims=hidden_critic, fc2_dims=hidden_critic)
         self.memory = PPOMemory(batch_size)
 
         self.alpha_actor = alpha_actor
@@ -228,13 +235,14 @@ class PPOv2Learner(Agent):
 
         self.hidden_actor = hidden_actor
         self.hidden_critic = hidden_critic
+        self.actor_scale_head = actor_scale_head
         
         self.current_measures = current_measures
 
         if state_dict:
             state_dict = state_dict["agent"]
 
-        """Params from constructor"""
+        """Params from constructor, get stored in the saved model"""
         self.config = {
             "alpha_actor" : alpha_actor,
             "alpha_critic" : alpha_critic,
@@ -246,6 +254,7 @@ class PPOv2Learner(Agent):
             "policy_clip" : policy_clip,
             "hidden_actor" : hidden_actor,
             "hidden_critic" : hidden_critic,
+            "actor_scale_head" : actor_scale_head,
         }
         """On full state loading override initial params"""
         if not only_model and state_dict:
@@ -259,6 +268,9 @@ class PPOv2Learner(Agent):
             print("Loaded state params from state dict.")
             self.__dict__.update(state_dict["state"])
             print("Loaded state params from state dict.")
+
+        self.actor = ActorNetwork(self.nr_actions, self.nr_input_features, self.alpha_actor, fc1_dims=self.hidden_actor, fc2_dims=self.hidden_actor, actor_scale_head=self.actor_scale_head)
+        self.critic = CriticNetwork(self.nr_input_features, self.alpha_critic, fc1_dims=self.hidden_critic, fc2_dims=self.hidden_critic)
 
         """Load state dict into model"""
         if state_dict:
@@ -299,14 +311,10 @@ class PPOv2Learner(Agent):
 
         return action, probs, value
 
-
     def update(self):
-        """
-        Update the NN to all episodes stored in the buffer.
-        """
 
-        actor_loss_list, critic_loss_list, total_loss_list = [], [], [] # simple lists with numbers
-        loc_list, scale_list = [], [] # simple lists with numbers
+        actor_loss_list, critic_loss_list, total_loss_list = [], [], []
+        loc_list, scale_list = [], []
 
         for _ in range(self.n_epochs):
             state_arr, action_arr, old_prob_arr, vals_arr,\
@@ -323,6 +331,7 @@ class PPOv2Learner(Agent):
 
             advantage = T.tensor(a).to(self.actor.device)
             values = T.tensor(values).to(self.actor.device)
+            
             for batch in batches:
                 states = T.tensor(state_arr[batch], dtype=T.float).to(self.actor.device)
                 old_probs = T.tensor(old_prob_arr[batch]).to(self.actor.device)
