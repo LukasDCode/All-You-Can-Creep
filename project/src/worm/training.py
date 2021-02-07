@@ -21,7 +21,7 @@ from ..utils.color import bcolors
 import mlflow
 
 DEFAULT_EPISODES = 5000
-DEFAULT_SAVE_FROM_EPISODE = 100
+DEFAULT_SAVE_FROM_EPISODE = 1000
 DEFAULT_RESULT_DIR = "debug"
 
 class AgentRunner(Runner):
