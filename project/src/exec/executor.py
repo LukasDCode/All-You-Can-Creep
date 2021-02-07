@@ -75,6 +75,3 @@ class Executor:
     def __enter__(self):
         self.pool = mp.Pool(self.tasks_in_parallel)
         return self
-
-
-

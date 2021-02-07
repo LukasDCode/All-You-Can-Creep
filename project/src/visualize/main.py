@@ -48,7 +48,6 @@ def visualize_all(config):
         measures.extend([m for m,_ in set["measures"].items() if m not in measures])
     print("visualizing measures ", measures,)
 
-
     columns = len(result_sets)  
     rows = max([len(x["measures"]) for x in result_sets]) 
     fig, axs = plot.subplots(
@@ -104,7 +103,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
 # Example: python3 -m src.visualize.main -n test all test_resultsaba4faf9-ecce-49fc-9524-d382e4c0cd7c.json
 # Example: python3 -m src.visualize.main -n test single -c 1 -m rewards test_resultsaba4faf9-ecce-49fc-9524-d382e4c0cd7c.json

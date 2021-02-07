@@ -26,6 +26,3 @@ class Gridsearch():
                     agent_class=self.agent_class,
                     **{**self.kwargs,**params},
                 )
-
-
-

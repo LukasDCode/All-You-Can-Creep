@@ -343,4 +343,3 @@ class PPOLearner(Agent):
           "config": self.config,
           "state": {k: self.__dict__.get(k) for k in self.config},
         }
-    
