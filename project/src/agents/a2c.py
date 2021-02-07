@@ -75,7 +75,7 @@ DEFAULT_ENTROPY = 1e-4
 DEFAULT_ENTROPY_FALL = 1 
 DEFAULT_BATCH_SIZE = 1
 DEFAULT_SCALE_CLAMP_MIN = 0.01
-DEFAULT_SCALE_CLAMP_MAX = 1.
+DEFAULT_SCALE_CLAMP_MAX = 0.5
 
 DEFAULT_NET = "multihead"
 DEFAULT_ADVANTAGE = "a2c"
@@ -215,7 +215,7 @@ class A2CLearner(Agent):
         )
         # print("Actions {} {}".format( action_locs, action_scales))
         m = torch.distributions.normal.Normal(action_locs, action_scales)
-        action = m.sample().detach().clamp(min=-1, max=1) # Size([1,9]) 
+        action = m.sample().detach() 
         return action.cpu().numpy() # Shape [1,action_space]
 
 
@@ -224,7 +224,8 @@ class A2CLearner(Agent):
     """       
     def predict_policy(self, states):
         (action_locs, action_scales), values = self.a2c_net(states)
-        action_scales = action_scales.clamp(min=self.scale_clamp_min, max=self.scale_clamp_max)
+        # we can clamp the action scales, but do not have to, by setting them to 0 and int max
+        action_scales = action_scales.clamp(min=self.scale_clamp_min, max=self.scale_clamp_max) 
         return (action_locs, action_scales), values
 
     def _discounted_returns(self, rewards):
