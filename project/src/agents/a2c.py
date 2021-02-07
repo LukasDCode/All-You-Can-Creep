@@ -80,6 +80,7 @@ DEFAULT_SCALE_CLAMP_MAX = 0.5
 DEFAULT_NET = "multihead"
 DEFAULT_ADVANTAGE = "a2c"
 DEFAULT_ACTIVATION_FKT = "ReLu"
+DEFAULT_HIDDEN_NEURONS = 64
 
 """
  Autonomous agent using Synchronous Actor-Critic.
@@ -118,6 +119,7 @@ class A2CLearner(Agent):
         parser.add_argument('-adv', '--advantage', type=str, default=DEFAULT_ADVANTAGE, choices=["a2c", "td", "3step", "reinforce"])
         parser.add_argument('-net', '--network', type=str, default=DEFAULT_NET, choices=["split", "multihead"])
         parser.add_argument('-act', '--activation', type=str, default=DEFAULT_ACTIVATION_FKT, choices=["ReLu", "sigmoid", "tanh"])
+        parser.add_argument('-hn', '--hidden_neurons', type=int, default=DEFAULT_HIDDEN_NEURONS)
         return parser
 
     @staticmethod
@@ -147,7 +149,7 @@ class A2CLearner(Agent):
         entropy_fall=DEFAULT_ENTROPY_FALL, batch_size=DEFAULT_BATCH_SIZE,
         scale_clamp_min=DEFAULT_SCALE_CLAMP_MIN, scale_clamp_max=DEFAULT_SCALE_CLAMP_MAX,
         # agent config
-        advantage=DEFAULT_ADVANTAGE, network=DEFAULT_NET, activation=DEFAULT_ACTIVATION_FKT,
+        advantage=DEFAULT_ADVANTAGE, network=DEFAULT_NET, activation=DEFAULT_ACTIVATION_FKT, hidden_neurons=DEFAULT_HIDDEN_NEURONS,
         # Loading model
         only_model=False, state_dict = None,
         **kwargs,
@@ -170,6 +172,7 @@ class A2CLearner(Agent):
             "network": network,
             "advantage": advantage,
             "activation": activation,
+            "hidden_neurons": hidden_neurons,
         }
         """On full state loading override initial params"""
         if not only_model and state_dict:
@@ -186,9 +189,9 @@ class A2CLearner(Agent):
 
         """Create network"""
         if(network == "multihead"):
-            self.a2c_net = A2CNet(self.nr_input_features, self.nr_actions, self.activation).to(self.device)
+            self.a2c_net = A2CNet(self.nr_input_features, self.nr_actions, self.activation, nr_hidden_units=hidden_neurons).to(self.device)
         else:
-            self.a2c_net = A2CNetSplit(self.nr_input_features, self.nr_actions, self.activation).to(self.device)
+            self.a2c_net = A2CNetSplit(self.nr_input_features, self.nr_actions, self.activation, nr_hidden_units=hidden_neurons).to(self.device)
 
         """Load state dict into model"""
         if state_dict:
