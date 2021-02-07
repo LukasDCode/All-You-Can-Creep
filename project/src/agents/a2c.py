@@ -315,11 +315,14 @@ class A2CLearner(Agent):
                 "loss_entropy": entropy_loss.item(),
                 "loss_value" : value_loss.item(),
                 "advantages_std" : advantages.std().item(),
+                "advantages_avg" : advantages.mean().item(),
                 "action_loc_std": action_locs.std().item(),
+                "action_loc_avg": action_locs.mean().item(),
                 "action_scale_avg": action_scales.mean().item(),
                 "action_scale_std": action_scales.std().item(),
                 "state_value_avg": state_values.mean().item(),
                 "state_value_std": state_values.std().item(),
+                "returns_avg" : returns.mean().item(),
             }
 
             # Optimize joint batch loss
