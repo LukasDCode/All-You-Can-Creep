@@ -25,8 +25,8 @@ class A2CNet(nn.Module):
         )
         self.action_head_scale = nn.Sequential( # Actor SCALE-Ausgabe von Policy
             nn.Linear(nr_hidden_units, nr_actions),
-            nn.Softplus(),
-            #nn.Sigmoid(), // TODO maybe replace
+            #nn.Softplus(),
+            nn.Sigmoid(),
         ) # Actor = Policy-Function NN
         self.value_head = nn.Linear(nr_hidden_units, 1) # Critic = Value-Function NN
 
@@ -51,8 +51,8 @@ class A2CNetSplit(nn.Module):
         )
         self.action_head_scale = nn.Sequential( # Actor SCALE-Ausgabe von Policy
             nn.Linear(nr_hidden_units, nr_actions),
-            nn.Softplus(),
-            #nn.Sigmoid(), # TODO maybe replace it
+            #nn.Softplus(),
+            nn.Sigmoid(),
         ) # Actor = Policy-Function NN
 
         self.value_head = nn.Sequential( #Critic = Value-Function
