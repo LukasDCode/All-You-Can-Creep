@@ -62,7 +62,6 @@ class EAsimple():
         futures = [self.eval(i) for i in self.current_population]
         for future in futures:
             rewards_array = future.get()
-            print(rewards_array)
             rewards_array = rewards_array["reward"]
 
             winner = max(rewards_array)
@@ -71,8 +70,6 @@ class EAsimple():
             fitness = (speed + (stability * 2) + winner / 4) 
             fitness_list.append(fitness)
         self.fitness_list = fitness_list
-        print("A", fitness_list)
-        print([future.get() for future in futures])
         return fitness_list
 
     def eval(self, individual):
@@ -89,11 +86,10 @@ class EAsimple():
             index_current_population_mate.append(a)
             a = a + 1
 
-        paarungswahrscheinlichkeit = [((1 / np.sqrt(np.pi * 0.5)) * np.exp(-(np.square((i /
-                                                                                        max(
-                                                                                            self.fitness_list) - 1) / 0.5))))
-                                      for i in self.fitness_list]
-        print("PW", paarungswahrscheinlichkeit)
+        paarungswahrscheinlichkeit = [
+            ((1 / np.sqrt(np.pi * 0.5)) * np.exp(-(np.square((i /max(self.fitness_list) - 1) / 0.5))))
+            for i in self.fitness_list
+        ]
 
         mothers = np.random.choice(a=index_current_population_mate, size=random.randint(0, self.population_max),
                                    replace=False,
@@ -130,7 +126,6 @@ class EAsimple():
         sterbewahrscheinlichkeit = [
             ((1 / np.sqrt(np.pi * 0.5)) * np.exp(-(np.square((i / max(self.fitness_list)) / 0.5)))) for i in
             self.fitness_list]
-        print("SW", sterbewahrscheinlichkeit)
 
         index_current_population_select = np.random.choice(a=index_current_population_select,
                                                            size=len(self.current_population) - self.population_max,
