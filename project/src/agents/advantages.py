@@ -17,3 +17,4 @@ def nstep(gamma, rewards, values, next_values, n=3):
     a1 = gamma ** index * next_values[index + n - 1]
     sums.append(a0 + a1)
   return torch.stack(sums) - values
+  

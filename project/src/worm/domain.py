@@ -33,7 +33,7 @@ class WormDomain():
         channel = EngineConfigurationChannel()
         channel.set_configuration_parameters(time_scale=self.time_scale)
         unity_env = UnityEnvironment(
-            file_name="Unity/worm_single_environment.x86_64" if "linux" in platform else "Unity",
+            file_name="Unity/worm_single_environment.x86_64" if "linux" in platform else "WormDynamic",
             #file_name="Unity/simple_ball_environment.x86_64" if "linux" in platform else "Unity",
             worker_id=worker_id,
             no_graphics=not self.visualize,
