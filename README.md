@@ -40,7 +40,7 @@ Because at least two people (sometimes 3 or even all 4) have been coding at the 
 | weighted_probs & clipping |   Lukas   |                                        |
 | -----                     |   -----   |                                  ----- |
 | Slurm                     |   Denny   |                           Slurm Runner |
-| Parameter Search          |   Sofie   |     Grid Search, Evolutional Algorithm |
+| Parameter Search          |   Sofie   |    Grid Search, Evolutionary Algorithm |
 | Environments + Unity      |   Lukas   |                                        |
 | Ml-Flow                   | Balthasar |                    Measures, Artifacts |
 | Save and Load Models      | Balthasar |                                        |
