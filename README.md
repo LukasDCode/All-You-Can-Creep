@@ -1,5 +1,9 @@
 # All You Can Creep
 
+![All you can creep.](Presentations/landing_image.png)
+
+# Presentations
+
 [14.12.2020 Presentation KickOff](Presentations/ASP_20201214_KickOff.pdf)
 
 [Final Presentation](Presentations/ASP_Final_Presentation.pdf)
